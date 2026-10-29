@@ -71,6 +71,72 @@ Node 使用同名环境变量；Worker 可在 `wrangler.jsonc` 的 `vars` 中设
 
 Origin 不包含路径，因此该设置会允许整个 `freecode100year.github.io` 来源，不能只限制到 `/htmlroom/`；同一账号的其他 Pages 项目也共享这个 Origin。
 
+## 部署前端到 Vercel
+
+[一键创建 Vercel 项目](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FFreecode100Year%2Fhtmlroom&env=HR_PAGES_RELAY)。仓库的 `vercel.json` 使用 `npm ci` 安装依赖、`npm run build:pages` 构建，并发布 `pages/`，不启动 `npm start` 或部署 Node 中继。选择 Node.js 22 或更高的受支持版本。
+
+1. 先部署自己的 Cloudflare/Node 中继，在 Vercel 环境变量里设置 `HR_PAGES_RELAY=wss://relay.example.com`。
+2. 部署后确认固定生产域名，例如 `https://my-room.vercel.app`。
+3. 在中继设置 `HR_ALLOWED_ORIGINS=https://my-room.vercel.app` 并重新部署或重启中继。来源不带路径或末尾斜杠，多个来源用逗号分隔。Preview 域名如需使用也须逐个放行，不支持通配符。
+4. 用两个浏览器打开同一房间链接，检查双方在线和消息互通。
+
+未设置 `HR_PAGES_RELAY` 时，静态构建仍默认使用 `wss://chat.nya.je`；该服务不保证允许你的 Vercel 来源。修改构建变量后需要重新部署前端。前端 CSP 在构建时允许指定中继；改用另一个中继时也应更新该变量并重新构建。
+
+本次只提供静态前端部署。现有 Node 中继把房间放在单进程内存中，不可直接当作多实例 Vercel Function 使用；完整中继适配及 Redis 消息分发未实现。参见 [Vercel Deploy Button 文档](https://vercel.com/docs/deploy-button)。
+
+## 服务器一键安装（Ubuntu/Debian）
+
+这是首次安装脚本，支持 Docker 官方仓库仍支持的 Ubuntu/Debian 版本，使用 Bash 4+。服务器需要能访问 GitHub、Docker 软件仓库、镜像仓库和证书颁发服务。先将域名 A/AAAA 解析到服务器；如存在 AAAA 记录，也须指向可访问的本机 IPv6。开放 TCP 80/443，停止占用这两个端口的其他服务。
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Freecode100Year/htmlroom/main/install.sh | sudo bash
+```
+
+脚本通过 `/dev/tty` 读取域名，适用于管道执行；无终端时可设置环境变量：
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Freecode100Year/htmlroom/main/install.sh \
+  | sudo env HR_DOMAIN=chat.example.com HR_INSTALL_DIR=/opt/htmlroom bash
+```
+
+也可以先下载审阅并只运行预检（无需 root；只校验域名格式和目标目录，不检查网络或安装软件）：
+
+```sh
+curl -fsSLo install.sh https://raw.githubusercontent.com/Freecode100Year/htmlroom/main/install.sh
+HR_DOMAIN=chat.example.com bash install.sh --check
+sudo env HR_DOMAIN=chat.example.com bash install.sh
+```
+
+默认目录 `/opt/htmlroom` 必须不存在，包括空目录。脚本不会删除或更新已有安装，也不会卸载其他 Docker 软件。已有 Docker 时复用它，但需要支持 `--wait` 的 Compose v2 或更新版本；缺少插件时停止并提示安装，不会替换已有引擎。首次安装无 Docker 时从 Docker 官方 apt 仓库安装。
+
+`compose.production.yaml` 在内部网络运行 Node 中继，只有 Caddy 发布 80/443；Node 启用 `TRUST_PROXY=1`。Caddy 持久卷保存证书，默认不启用 HTTP 访问日志。脚本先等待 Node 健康检查，再分别检查本机 Caddy 和公网域名的 HTTPS 证书，并将返回的 `hr.js` 与本次安装的资源比对，避免域名指向其他网站时误报成功。全部通过后才报告完成。若证书尚未签发或 DNS/端口有误，脚本返回失败并保留容器，修复后可使用下面的命令检查，无需重跑安装脚本。
+
+日常操作：
+
+```sh
+cd /opt/htmlroom
+sudo docker compose --env-file .env.install -f compose.production.yaml ps
+sudo docker compose --env-file .env.install -f compose.production.yaml logs --tail=80 caddy
+curl -f https://chat.example.com/
+```
+
+更新（会重启中继，在线连接和内存会话会中断）：
+
+```sh
+cd /opt/htmlroom
+sudo git pull --ff-only
+sudo docker compose --env-file .env.install -f compose.production.yaml up -d --build --wait --wait-timeout 90
+```
+
+需要额外允许外部前端时，在 `.env.install` 中追加 `HR_ALLOWED_ORIGINS=https://my-room.vercel.app`，再执行上述 Compose `up` 命令。本站前端使用同源中继，无需此设置。仅停止/卸载容器但保留源码和证书：
+
+```sh
+cd /opt/htmlroom
+sudo docker compose --env-file .env.install -f compose.production.yaml down
+```
+
+本次验证不在真实公网服务器上安装系统软件或申请证书。远程安装命令及部署按钮使用 `main` 分支发布的版本。
+
 ## 部署聊天中继
 
 ### Node.js 与 HTTPS 反向代理
@@ -106,6 +172,14 @@ docker compose up -d --build
 默认仅绑定 `127.0.0.1:8080`，仍需前置 HTTPS 代理。若前端部署在其他源，请在 Compose 服务的 `environment` 中配置 `HR_ALLOWED_ORIGINS`；使用可信代理时同时配置 `TRUST_PROXY=1`。
 
 ### Cloudflare Workers
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2FFreecode100Year%2Fhtmlroom)
+
+按钮会从公开仓库创建项目，读取 `package.json` 的 `build` / `deploy` 脚本，并按 Wrangler 配置创建 Durable Objects。前端与中继同源，默认不需设置 `HR_ALLOWED_ORIGINS`。参见 [Cloudflare 部署按钮文档](https://developers.cloudflare.com/workers/platform/deploy-buttons/)。
+
+官方按钮资源支持列表列出了 Durable Objects，未明确列出 Rate Limiting。实测按钮正确跳转到 Cloudflare 控制台，但当前浏览器测试环境遇到验证页（HTTP 403），未完成登录账户后的端到端部署。如果按钮报告不支持 `JOIN_LIMIT`，在创建的仓库中删除 `wrangler.jsonc` 的 `ratelimits` 项后重试，或使用下方 CLI 部署。Worker 已使用 `if (env.JOIN_LIMIT)` 检查绑定是否存在；移除后会跳过该层加入速率限制。不要移除 `ROOMS` 或 Durable Objects 迁移。
+
+命令行部署：
 
 ```sh
 npm ci

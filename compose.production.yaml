@@ -1,0 +1,29 @@
+# Separate from compose.yaml: only Caddy is reachable from the host/network.
+services:
+  htmlroom:
+    build: .
+    restart: unless-stopped
+    environment:
+      TRUST_PROXY: "1"
+      HR_ALLOWED_ORIGINS: ${HR_ALLOWED_ORIGINS:-}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      HR_DOMAIN: ${HR_DOMAIN:?Set HR_DOMAIN to your public hostname}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      htmlroom:
+        condition: service_healthy
+volumes:
+  caddy_data:
+  caddy_config:
