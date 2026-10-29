@@ -6,7 +6,7 @@
 [![GitHub Pages](https://github.com/Freecode100Year/htmlroom/actions/workflows/pages.yml/badge.svg)](https://github.com/Freecode100Year/htmlroom/actions/workflows/pages.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-👉 **[马上创建房间](https://freecode100year.github.io/htmlroom/)**　（打不开时可用 [备用入口](https://chat.nya.je/)）
+👉 **[马上创建房间](https://freecode100year.github.io/htmlroom/)**　（也可使用 [Vercel 入口](https://htmlroom6.vercel.app/) 或 [备用入口](https://chat.nya.je/)）
 
 ---
 
