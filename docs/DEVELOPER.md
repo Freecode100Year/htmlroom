@@ -86,56 +86,52 @@ Origin 不包含路径，因此该设置会允许整个 `freecode100year.github.
 
 ## 服务器一键安装（Ubuntu/Debian）
 
-这是首次安装脚本，支持 Docker 官方仓库仍支持的 Ubuntu/Debian 版本，使用 Bash 4+。服务器需要能访问 GitHub、Docker 软件仓库、镜像仓库和证书颁发服务。先将域名 A/AAAA 解析到服务器；如存在 AAAA 记录，也须指向可访问的本机 IPv6。开放 TCP 80/443，停止占用这两个端口的其他服务。
+支持 Docker 官方 apt 仓库支持的 Debian/Ubuntu、x86_64 与 arm64，安装脚本为 POSIX sh。服务器须能访问 GitHub、Docker 软件仓库、GHCR 和证书颁发服务。将域名的所有 A/AAAA 记录指向本机；IPv6 记录也必须可访问。开放 TCP 80/443，并停止占用这两个端口的服务。DNS 核验使用系统解析器、网卡地址及 ipify HTTPS 返回的公网地址；不匹配时在安装 Docker 前停止。若服务器的 NAT/代理导致公网出口与入口不同，需先修正网络，脚本不会跳过公网域名的 DNS 核验。
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/Freecode100Year/htmlroom/main/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/Freecode100Year/htmlroom/main/scripts/install.sh \
+  | sh -s -- --domain chat.example.com
 ```
 
-脚本通过 `/dev/tty` 读取域名，适用于管道执行；无终端时可设置环境变量：
+省略 `--domain` 时从 `/dev/tty` 读取域名；非 root 用户会按命令使用 sudo，不会将管道中的脚本重新执行为文件。保留兼容入口 `install.sh` 和环境变量 `HR_DOMAIN`、`HR_INSTALL_DIR`。域名与路径格式预检无需 root，不访问网络，也不安装软件：
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/Freecode100Year/htmlroom/main/install.sh \
-  | sudo env HR_DOMAIN=chat.example.com HR_INSTALL_DIR=/opt/htmlroom bash
+HR_INSTALL_DIR=/opt/htmlroom sh scripts/install.sh --domain chat.example.com --check
 ```
 
-也可以先下载审阅并只运行预检（无需 root；只校验域名格式和目标目录，不检查网络或安装软件）：
+默认拉取 `ghcr.io/freecode100year/htmlroom:latest`。仓库的 **Publish relay image** 工作流在推送任意 tag 时发布 linux/amd64 与 linux/arm64，同时支持手动 `workflow_dispatch` 发布首次镜像。GHCR 包首次发布可能仍为私有；维护者须确认公开可见性并验证匿名拉取，公开仓库本身不保证包可匿名访问。首次发布前或 GHCR 不可用时使用 `--build`：脚本下载 `main` 源码并用 Docker 构建，不依赖 GHCR，但需要 GitHub、Docker Hub、npm 可达。也可设置 `HR_SOURCE_DIR=/绝对路径/htmlroom` 使用已审阅的本地源码（含提交的 `dist/`）。
+
+已有 Docker 时跳过安装，但需 Compose v2 支持 `--wait`；缺少插件时明确停止，不替换已有引擎。Docker 不存在时使用官方 apt 仓库。安装工具仅用系统软件包（curl、证书、Python 3 参与 DNS 地址规范化），未增加中继运行时依赖。
+
+默认目录 `/opt/htmlroom` 必须不存在，或持有 `.htmlroom-install` 安装标记。该目录中的 `compose.yaml` 与 `Caddyfile` 由唯一实现 `scripts/install.sh` 生成；修改后重跑脚本会覆盖这两个文件。重复执行保留证书卷和源码，重新写入配置并启动服务。默认模式拉取最新镜像，`--build` 模式重建现有源码；要更新已下载源码，先审阅并更新 `/opt/htmlroom/source`，或使用新的 `HR_SOURCE_DIR`。更新重启会中断当前连接与内存会话。此版本的安装器不接管旧版 git clone 安装；请使用新的空目录，旧目录不会被覆盖。
+
+只有 Caddy 发布 80/443；Node 仅在内部网络运行并启用 `TRUST_PROXY=1`。Caddy 默认不开启访问日志，运行时错误日志删除 `Sec-WebSocket-Protocol`、Authorization、Cookie、客户端 IP/端口字段；认证子协议头仍完整转发给中继。生产验证始终使用带证书校验的 HTTPS `/healthz`，不自动降为 HTTP。证书签发或 DNS 有误时保留现场并返回失败，修复后可重复执行。
 
 ```sh
-curl -fsSLo install.sh https://raw.githubusercontent.com/Freecode100Year/htmlroom/main/install.sh
-HR_DOMAIN=chat.example.com bash install.sh --check
-sudo env HR_DOMAIN=chat.example.com bash install.sh
+# 安装与更新（默认拉取 GHCR）
+sh scripts/install.sh --domain chat.example.com
+# 从源码安装与重建
+sh scripts/install.sh --domain chat.example.com --build
+# 查看状态；项目名由安装目录稳定派生
+HR_PROJECT=htmlroom-$(printf '%s' /opt/htmlroom | cksum | cut -d ' ' -f 1)
+sudo docker compose -p "$HR_PROJECT" -f /opt/htmlroom/compose.yaml ps
+curl -f https://chat.example.com/healthz
+# 卸载；自定义目录时保留相同 HR_INSTALL_DIR
+sh scripts/install.sh --uninstall
 ```
 
-默认目录 `/opt/htmlroom` 必须不存在，包括空目录。脚本不会删除或更新已有安装，也不会卸载其他 Docker 软件。已有 Docker 时复用它，但需要支持 `--wait` 的 Compose v2 或更新版本；缺少插件时停止并提示安装，不会替换已有引擎。首次安装无 Docker 时从 Docker 官方 apt 仓库安装。
+卸载只操作有安装标记的项目：停止其 Compose 服务，删除生成的配置，保留安装标记、目录、自有文件、源码及证书卷，支持重复卸载。不删除 Docker、其他服务或其他项目卷。若需允许外部前端，可手动给生成 Compose 的 `htmlroom.environment` 增加 `HR_ALLOWED_ORIGINS` 精确 HTTPS 来源；重跑安装器会覆盖手动配置，本站同源前端无需此设置。
 
-`compose.production.yaml` 在内部网络运行 Node 中继，只有 Caddy 发布 80/443；Node 启用 `TRUST_PROXY=1`。Caddy 持久卷保存证书，默认不启用 HTTP 访问日志。脚本先等待 Node 健康检查，再分别检查本机 Caddy 和公网域名的 HTTPS 证书，并将返回的 `hr.js` 与本次安装的资源比对，避免域名指向其他网站时误报成功。全部通过后才报告完成。若证书尚未签发或 DNS/端口有误，脚本返回失败并保留容器，修复后可使用下面的命令检查，无需重跑安装脚本。
-
-日常操作：
+仅本机开发允许 HTTP：
 
 ```sh
-cd /opt/htmlroom
-sudo docker compose --env-file .env.install -f compose.production.yaml ps
-sudo docker compose --env-file .env.install -f compose.production.yaml logs --tail=80 caddy
-curl -f https://chat.example.com/
+HR_INSTALL_DIR=/tmp/my-htmlroom HR_HTTP_PORT=18080 \
+  sh scripts/install.sh --domain localhost --skip-dns-check --build
 ```
 
-更新（会重启中继，在线连接和内存会话会中断）：
+`--skip-dns-check` 只能搭配 `localhost`，仅发布 `127.0.0.1` 高位端口，须预装 Docker/Compose 与 curl；该模式不安装软件或启动系统服务。它不能用于公网域名或公网证书绕过。CI 的 `sh scripts/test-install.sh` 在 Debian 容器中以非 root 用户通过 sudo 和 Docker socket 实际安装，验证幂等、资源与健康响应、Caddy 错误日志脱敏及卸载。容器与宿主机绑定目录保持相同绝对路径，避免宿主 Docker daemon 找不到 Caddyfile。仅测试项目的临时目录和证书卷会被清理；不会在宿主机安装软件或申请公网证书。
 
-```sh
-cd /opt/htmlroom
-sudo git pull --ff-only
-sudo docker compose --env-file .env.install -f compose.production.yaml up -d --build --wait --wait-timeout 90
-```
-
-需要额外允许外部前端时，在 `.env.install` 中追加 `HR_ALLOWED_ORIGINS=https://my-room.vercel.app`，再执行上述 Compose `up` 命令。本站前端使用同源中继，无需此设置。仅停止/卸载容器但保留源码和证书：
-
-```sh
-cd /opt/htmlroom
-sudo docker compose --env-file .env.install -f compose.production.yaml down
-```
-
-本次验证不在真实公网服务器上安装系统软件或申请证书。远程安装命令及部署按钮使用 `main` 分支发布的版本。
+本步骤不改变房间格式、客户端 CSP 或协议，现有房间文件仍可用。公网全新服务器安装、自动证书签发及远程 arm64 运行需在对应基础设施验证，容器测试不能替代这些检查。
 
 ## 部署聊天中继
 

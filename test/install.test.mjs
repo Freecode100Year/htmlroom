@@ -1,59 +1,128 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, existsSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
+import { mkdtempSync, existsSync, rmSync, writeFileSync, readFileSync, mkdirSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const script = fileURLToPath(new URL('../install.sh', import.meta.url));
-test('installer preflight validates input before making host changes', { skip: process.platform !== 'linux' && 'Ubuntu/Debian installer requires Linux and Bash 4+' }, () => {
+const script = fileURLToPath(new URL('../scripts/install.sh', import.meta.url));
+const linux = process.platform !== 'linux';
+function fixture() {
   const root = mkdtempSync(join(tmpdir(), 'htmlroom-install-'));
-  const destination = join(root, 'new-install');
-  const run = (domain, dir = destination) => spawnSync('bash', [script, '--check'], {
-    env: { ...process.env, HR_DOMAIN: domain, HR_INSTALL_DIR: dir }, encoding: 'utf8', timeout: 5000,
+  const bin = join(root, 'bin');
+  mkdirSync(bin);
+  const command = (name, body) => writeFileSync(join(bin, name), '#!/bin/sh\nset -eu\n' + body, { mode: 0o755 });
+  // System/network boundaries only: all validation, state and generated files are real.
+  command('docker', '[ "${FAIL_DOCKER:-0}" = 0 ] || exit 1\nexit 0\n');
+  command('curl', 'case "$*" in *healthz*) printf \'%s\' "$HEALTH_BODY";; *) exit 8;; esac\n');
+  command('apt-get', 'echo "unexpected package mutation" >&2; exit 77\n');
+  const destination = join(root, 'install');
+  const run = (args = [], extra = {}) => spawnSync('sh', [script, ...args], {
+    env: { ...process.env, PATH: bin + ':' + process.env.PATH, HR_INSTALL_DIR: destination, HEALTH_BODY: '{"ok":true,"version":"1.0.0"}', ...extra },
+    encoding: 'utf8', timeout: 5000,
   });
+  return { root, destination, bin, run, command, clean: () => rmSync(root, { recursive: true, force: true }) };
+}
+test('POSIX preflight rejects unsafe domains and unrelated directories without writes', { skip: linux }, () => {
+  const f = fixture();
   try {
-    const valid = run('chat.example.com');
-    assert.equal(valid.status, 0, valid.stderr);
-    assert.match(valid.stdout, /chat\.example\.com/);
-    assert.equal(existsSync(destination), false, 'check-only must not create files');
-    for (const domain of ['https://chat.example.com', 'chat.example.com/path', 'bad\n{', '*.example.com', '-bad.example.com', 'a..example.com', 'localhost', '127.0.0.1']) {
-      assert.notEqual(run(domain).status, 0, domain);
+    assert.equal(f.run(['--check', '--domain', 'chat.example.com']).status, 0);
+    assert.equal(existsSync(f.destination), false);
+    for (const domain of ['https://chat.example.com', 'chat.example.com/path', 'bad\n{', '*.example.com', '-bad.example.com', 'a..example.com', 'localhost', '127.0.0.1', 'a.example.com.']) {
+      assert.notEqual(f.run(['--check', '--domain', domain]).status, 0, domain);
     }
-    assert.notEqual(run('chat.example.com', 'relative/path').status, 0);
-    const marker = join(root, 'keep.txt');
-    writeFileSync(marker, 'preserve me');
-    assert.notEqual(run('chat.example.com', root).status, 0);
-    assert.equal(readFileSync(marker, 'utf8'), 'preserve me');
-  } finally { rmSync(root, { recursive: true, force: true }); }
+    assert.notEqual(f.run(['--check', '--domain', 'chat.example.com'], { HR_INSTALL_DIR: 'relative/path' }).status, 0);
+    mkdirSync(f.destination);
+    writeFileSync(join(f.destination, 'keep'), 'preserve');
+    assert.notEqual(f.run(['--check', '--domain', 'chat.example.com']).status, 0);
+    assert.equal(readFileSync(join(f.destination, 'keep'), 'utf8'), 'preserve');
+  } finally { f.clean(); }
+});
+test('loopback install is idempotent and uninstall preserves user files and certificates', { skip: linux }, () => {
+  const f = fixture();
+  try {
+    const args = ['--domain', 'localhost', '--skip-dns-check'];
+    const installed = f.run(args);
+    assert.equal(installed.status, 0, installed.stderr);
+    assert.match(installed.stdout, /http:\/\/localhost:/);
+    assert.match(installed.stdout, /ws:\/\/localhost:/);
+    const compose = readFileSync(join(f.destination, 'compose.yaml'), 'utf8');
+    assert.match(compose, /127\.0\.0\.1:/);
+    assert.match(compose, /ghcr\.io\/freecode100year\/htmlroom:latest/);
+    assert.equal(f.run(args).status, 0);
+    writeFileSync(join(f.destination, 'keep'), 'mine');
+    assert.equal(f.run(['--uninstall']).status, 0);
+    assert.equal(readFileSync(join(f.destination, 'keep'), 'utf8'), 'mine');
+    assert.equal(existsSync(join(f.destination, 'compose.yaml')), false);
+    assert.equal(f.run(['--uninstall']).status, 0);
+  } finally { f.clean(); }
+});
+test('HTTP escape hatch refuses public domains and production localhost', { skip: linux }, () => {
+  const f = fixture();
+  try {
+    assert.notEqual(f.run(['--domain', 'chat.example.com', '--skip-dns-check']).status, 0);
+    assert.notEqual(f.run(['--domain', 'localhost']).status, 0);
+    assert.equal(existsSync(f.destination), false);
+  } finally { f.clean(); }
+});
+test('uninstall refuses unmarked directories and symlinked installation paths', { skip: linux }, () => {
+  const f = fixture();
+  try {
+    mkdirSync(f.destination);
+    writeFileSync(join(f.destination, 'keep'), 'mine');
+    assert.notEqual(f.run(['--uninstall']).status, 0);
+    rmSync(f.destination, { recursive: true });
+    symlinkSync(f.bin, f.destination);
+    assert.notEqual(f.run(['--uninstall']).status, 0);
+    assert.ok(existsSync(join(f.bin, 'docker')));
+  } finally { f.clean(); }
+});
+test('invalid health content cannot be reported as a successful installation', { skip: linux }, () => {
+  const f = fixture();
+  try {
+    const result = f.run(['--domain', 'localhost', '--skip-dns-check'], { HEALTH_BODY: '<html>unrelated</html>' });
+    assert.notEqual(result.status, 0);
+    assert.doesNotMatch(result.stdout, /部署完成/);
+  } finally { f.clean(); }
+});
+test('piped non-root installer uses sudo per command without reexecuting stdin or $0', { skip: linux }, () => {
+  const f = fixture();
+  try {
+    f.command('id', 'printf "1000\\n"\n');
+    f.command('sudo', 'if [ "${1:-}" = -v ]; then exit 0; fi\nexec "$@"\n');
+    const result = spawnSync('sh', ['-s', '--', '--domain', 'localhost', '--skip-dns-check'], {
+      input: readFileSync(script, 'utf8'), encoding: 'utf8', timeout: 5000,
+      env: { ...process.env, PATH: f.bin + ':' + process.env.PATH, HR_INSTALL_DIR: f.destination, HEALTH_BODY: '{"ok":true,"version":"1.0.0"}' },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /部署完成/);
+  } finally { f.clean(); }
 });
 
-// Installation effects are external: replace package/network/container commands,
-// but execute the real installer and inspect its exit status and written files.
-test('installer refuses unrelated public HTTPS content before reporting success', {
-  skip: process.platform !== 'linux' || process.getuid?.() !== 0,
-}, () => {
-  const root = mkdtempSync(join(tmpdir(), 'htmlroom-install-readiness-'));
-  const bin = join(root, 'bin');
-  const { status: mkdirStatus } = spawnSync('mkdir', ['-p', bin]);
-  assert.equal(mkdirStatus, 0);
-  const command = (name, body) => writeFileSync(join(bin, name), '#!/bin/bash\nset -eu\n' + body, { mode: 0o755 });
-  command('apt-get', 'exit 0\n');
-  command('docker', 'exit 0\n');
-  command('git', 'destination=${@: -1}\nmkdir -p "$destination/deploy" "$destination/dist"\ntouch "$destination/compose.production.yaml" "$destination/deploy/Caddyfile"\nprintf "expected application" >"$destination/dist/hr.js"\n');
-  command('curl', 'output=/dev/stdout\nbody=$TEST_PUBLIC_BODY\nwhile (($#)); do\n if [[ "$1" == --resolve ]]; then body="expected application"; fi\n if [[ "$1" == --output || "$1" == -o ]]; then output=$2; shift; fi\n shift\ndone\nprintf "%s" "$body" >"$output"\n');
-  const run = (leaf, body) => spawnSync('bash', [script], {
-    env: { ...process.env, PATH: bin + ':' + process.env.PATH, HR_DOMAIN: 'chat.example.com',
-      HR_INSTALL_DIR: join(root, leaf), TEST_PUBLIC_BODY: body }, encoding: 'utf8', timeout: 5000,
-  });
+test('production checks every DNS address before Docker and keeps HTTPS mandatory', { skip: linux }, () => {
+  const f = fixture();
   try {
-    const unrelated = run('unrelated', '<html>another website</html>');
-    assert.notEqual(unrelated.status, 0, unrelated.stdout + unrelated.stderr);
-    assert.doesNotMatch(unrelated.stdout, /部署完成/);
-    const valid = run('valid', 'expected application');
+    f.command('curl', 'case "$*" in *api6.ipify.org*) printf "2001:db8::1";; *api.ipify.org*) printf "203.0.113.1";; *healthz*) printf \'%s\' "$HEALTH_BODY";; *) exit 8;; esac\n');
+    f.command('hostname', 'printf "10.0.0.2\\n"\n');
+    // Keep the real Python IP normalization and installer logic, replace only DNS I/O.
+    f.command('python3', `shift\nexec /usr/bin/python3 -c 'import os,socket,sys
+socket.getaddrinfo=lambda *args,**kwargs: [(0,0,0,"",(ip,443)) for ip in os.environ["DNS_RECORDS"].split()]
+exec(sys.stdin.read())' "$@"\n`);
+    const called = join(f.root, 'docker-called');
+    f.command('docker', 'touch "$TEST_DOCKER_CALLED"\nexit 0\n');
+    const mismatch = f.run(['--domain', 'relay.example.com'], { DNS_RECORDS: '203.0.113.99', TEST_DOCKER_CALLED: called });
+    assert.notEqual(mismatch.status, 0);
+    assert.match(mismatch.stderr, /DNS/);
+    assert.equal(existsSync(called), false, 'DNS failure must precede Docker operations');
+    assert.equal(existsSync(f.destination), false);
+    const mixed = f.run(['--domain', 'relay.example.com'], { DNS_RECORDS: '203.0.113.1 2001:db8::99', TEST_DOCKER_CALLED: called });
+    assert.notEqual(mixed.status, 0, 'a valid A must not hide a wrong AAAA');
+    assert.equal(existsSync(called), false);
+    const valid = f.run(['--domain', 'relay.example.com'], { DNS_RECORDS: '203.0.113.1 2001:0db8:0:0:0:0:0:1', TEST_DOCKER_CALLED: called });
     assert.equal(valid.status, 0, valid.stderr);
-    assert.match(valid.stdout, /部署完成/);
-    assert.equal(readFileSync(join(root, 'valid/.env.install'), 'utf8'), 'HR_DOMAIN=chat.example.com\n');
-  } finally { rmSync(root, { recursive: true, force: true }); }
+    assert.match(valid.stdout, /wss:\/\/relay\.example\.com/);
+    assert.match(valid.stdout, /https:\/\/relay\.example\.com/);
+    assert.doesNotMatch(readFileSync(join(f.destination, 'Caddyfile'), 'utf8'), /http:\/\//);
+  } finally { f.clean(); }
 });

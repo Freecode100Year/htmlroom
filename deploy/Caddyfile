@@ -1,3 +1,0 @@
-{$HR_DOMAIN} {
-	reverse_proxy htmlroom:8080
-}

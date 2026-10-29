@@ -82,17 +82,19 @@
 
 仓库须公开。实测按钮可跳转至 Cloudflare 控制台，但当前测试环境被其验证页拦截（403），账户授权及 `JOIN_LIMIT` 绑定兼容性尚未完成线上验证；如果页面不支持该绑定，请在创建的仓库中移除 `wrangler.jsonc` 的 `ratelimits` 项后重新部署。代码已支持缺少该绑定时每个 Worker 实例仅记录一次不含请求信息的警告并跳过加入限流，房间人数和消息大小限制仍生效。详见 [Cloudflare 部署说明](docs/DEVELOPER.md#cloudflare-workers)。
 
-### Linux 服务器：一条命令安装
+### 有自己的服务器？一条命令搭建私人中继
 
-需要 Ubuntu/Debian、root 或 sudo 权限，以及一个**已解析到服务器的域名**。请开放 TCP 80/443，并确保没有其他程序占用这两个端口。
+准备一台 Debian/Ubuntu 服务器（x86_64 或 arm64）、root 或 sudo 权限，以及一个**已解析到服务器公网地址的域名**。域名的 A/AAAA 记录都须指向本机，开放 TCP 80/443。
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/Freecode100Year/htmlroom/main/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/Freecode100Year/htmlroom/main/scripts/install.sh | sh -s -- --domain relay.example.com
 ```
 
-按提示输入域名，脚本会安装所需工具、检查或安装 Docker、拉取代码，再通过 Caddy 自动申请 HTTPS 证书并启动前端和中继。默认安装到 `/opt/htmlroom`，已有目录会拒绝覆盖。root 用户可将 `sudo bash` 换成 `bash`。
+将 `relay.example.com` 换成自己的域名；省略 `--domain` 可按提示输入。脚本检查 DNS、按需安装 Docker，通过 Caddy 自动申请 HTTPS 证书，最后给出网页地址 `https://relay.example.com/` 和中继地址 `wss://relay.example.com`。默认从 GHCR 拉取镜像，安装目录为 `/opt/htmlroom`；重复执行会更新配置并启动服务，不删除证书。
 
-非交互安装、预检、更新和卸载见 [服务器一键安装](docs/DEVELOPER.md#服务器一键安装ubuntudebian)。
+首次镜像尚未发布、未开放匿名拉取，或服务器无法访问 GHCR 时，在命令末尾加 `--build` 从源码构建。仓库维护者可在合并后手动运行 **Publish relay image** 工作流发布首次镜像；需确认包的公开可见性及匿名拉取成功。后续每次推送 tag 会自动发布 amd64/arm64 镜像。源码构建仍需能访问 GitHub、Docker Hub 和 npm。
+
+卸载只需重新运行命令，把 `--domain relay.example.com` 换成 `--uninstall`；只移除有安装标记的本项目容器和生成配置，保留证书卷、源码和目录中的自有文件。详细的预检、更新与本机测试见 [服务器一键安装](docs/DEVELOPER.md#服务器一键安装ubuntudebian)。
 
 ### Vercel：仅部署前端
 
@@ -102,7 +104,7 @@ curl -fsSL https://raw.githubusercontent.com/Freecode100Year/htmlroom/main/insta
 
 ### 部署支持与验证结果
 
-已提供 Cloudflare 完整部署入口、Vercel 静态前端配置，以及 Ubuntu/Debian 的 Docker + Caddy 一键安装脚本。安装脚本支持 `--check` 预检、拒绝覆盖已有目录，并校验本机及公网 HTTPS 返回的应用资源。
+已提供 Cloudflare 完整部署入口、Vercel 静态前端配置，以及 Ubuntu/Debian 的 Docker + Caddy 一键安装脚本。安装脚本支持 POSIX sh、`--check` 格式预检、DNS 校验、重复运行和 `--uninstall`，拒绝操作无本项目安装标记的已有目录，并通过 HTTPS `/healthz` 验证中继。
 
 本地验证：38 项项目测试通过（默认跳过的 9 项 Worker 探针另行运行，全部通过），静态前端、网页/文件互通及双中继故障切换浏览器测试、构建检查和 Worker 打包检查通过。Docker 镜像构建与 Compose/Caddy 配置也已在部署功能加入时通过检查。这些检查不代表已完成公网服务器安装或云端部署；Cloudflare 按钮的登录后绑定兼容性仍待验证。
 
