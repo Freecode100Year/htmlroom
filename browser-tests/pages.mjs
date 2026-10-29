@@ -29,7 +29,7 @@ try {
   const html=await readFile(await download.path(),'utf8');
   const config=JSON.parse(html.match(/type="application\/json">(.*?)<\/script>/s)[1]);
   assert.deepEqual(config.relays,['wss://chat.nya.je']);
-  assert.ok(html.includes('connect-src wss://chat.nya.je'));
+  assert.ok(/connect-src wss: [^;]*wss:\/\/chat\.nya\.je;/.test(html), 'custom-relay file still lists its relay');
   await page.goto(link);await page.waitForFunction(()=>location.hash==='');
   await page.locator('#enter').waitFor({state:'visible'});
   assert.equal(await page.locator('#enter').isEnabled(),true);

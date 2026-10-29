@@ -260,6 +260,12 @@ npm run test:mesh                                            # 浏览器：4 个
 
 `test/fixtures/mesh-relays.mjs` 启动本项目 Node 中继、Go 中继、校验签名的 Nostr 中继和 aedes MQTT 代理；有 Go 工具链时才运行 Go 相关用例。
 
+## 在房间文件里自定义中继
+
+配置可带 `"custom": true`（网页生成器和 CLI `room` 默认开启，生成器取消勾选或 CLI 加 `--strict` 则关闭）。开启后文件的 CSP connect-src 为 `wss: ws://localhost:* ws://127.0.0.1:*` 加上列出的中继，进房界面显示「中继服务器」输入框，默认填文件里的中继。改填的地址只用于本次打开（不存储、不改文件），经 `relayList` 校验后决定 version 2（经典）或 3（去中心化）；密钥、口令和 roomId 不变。网页链接入口不显示该输入框，因为网页 CSP 只能连站点预设的中继。
+
+`retarget` 和转换器默认保留原文件的设置；CLI `retarget` 可加 `--custom` 或 `--strict` 改变，网页转换器用「允许在新文件里自定义中继」勾选框。
+
 ## 更换中继（迁移到自建中继）
 
 `relays` 只是公开路由配置：roomId 由主密钥派生，口令包装的 AAD 只绑定 roomId，二者都不含中继地址。因此同一房间可以搬到任何兼容中继（本项目的 Node/Docker 或 Cloudflare 中继），新中继无需任何房间预配置——文件以 `Origin: null` 连接，中继默认放行。

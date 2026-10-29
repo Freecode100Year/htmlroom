@@ -1,8 +1,9 @@
-import { unlock, validate, hex } from './crypto.js';
+import { unlock, validate, hex, sessionRelays } from './crypto.js';
 import { Session } from './session.js';
 import { RelayConnection } from './relay-connection.js';
 import { MeshConnection } from './mesh.js';
-export function boot(config) {
+// allowCustom: false in the web entry, whose CSP cannot reach typed-in relays.
+export function boot(config, { allowCustom = true } = {}) {
 const el=id=>document.getElementById(id), status=text=>{el('status').textContent=text;};
 el('preview-help').hidden=true;
 let attempts=0,busy=false,nextUnlock=0;
@@ -20,10 +21,15 @@ if(!globalThis.crypto?.subtle || !globalThis.WebSocket || !globalThis.TextEncode
 else if(config.version){
  try{validate(config);status(config.encrypted?'请输入口令，然后点「进入房间」。':'点「进入房间」开始聊天。');el('password').disabled=false;el('enter').disabled=false;}catch{status('房间文件有问题，请让对方重新发一份。');el('enter').disabled=true;}
 }else{status('这是空白模板，请先在创建页面里创建房间。');el('enter').disabled=true;}
-el('unlock').addEventListener('submit',async e=>{e.preventDefault();if(busy||Date.now()<nextUnlock)return;busy=true;el('enter').disabled=true;try{
- const derived=await unlock(config,el('password').value);el('password').value='';session=new Session(derived,config,{emit});el('unlock').hidden=true;el('chat').hidden=false;
- if(config.version===3){
-  const connection=new MeshConnection(config.relays,{
+const custom=allowCustom && config.version && config.custom===true;
+if(custom){el('custom-relay').hidden=false;el('relay-input').value=config.relays.join(' ');}
+el('unlock').addEventListener('submit',async e=>{e.preventDefault();if(busy||Date.now()<nextUnlock)return;
+ let room=config;
+ if(custom){try{room=sessionRelays(config,el('relay-input').value);}catch(err){status(`中继地址不对：${/[\u4e00-\u9fff]/.test(err?.message??'')?err.message:'请检查格式，例如 wss://relay.example.com'}`);return;}}
+ busy=true;el('enter').disabled=true;try{
+ const derived=await unlock(room,el('password').value);el('password').value='';session=new Session(derived,room,{emit});el('unlock').hidden=true;el('chat').hidden=false;
+ if(room.version===3){
+  const connection=new MeshConnection(room.relays,{
    derived:session.d,
    onhello:n=>session.run(()=>{session.ws=connection.socket;status('已进入房间，正在确认其他成员……');return session.incoming({type:'hello',you:n,resume:''});}),
    onmembers:list=>session.run(()=>session.incoming({type:'members',members:list})),
@@ -35,13 +41,13 @@ el('unlock').addEventListener('submit',async e=>{e.preventDefault();if(busy||Dat
   session.connection=connection;connection.start();
   status('正在连接……');
  }else{
- const connection=new RelayConnection(config.relays,{
-  roomId:config.roomId,
+ const connection=new RelayConnection(room.relays,{
+  roomId:room.roomId,
   protocols:index=>['pt2',`a${hex(session.d.access)}`,...(session.resume && connection.lastIndex===index?[`r${session.resume}`]:[])],
   onactive:(ws,index,changed)=>session.run(()=>{
    if(changed)session.resetRelay();
    session.ws=ws;
-   el('relay-status').textContent=`中继：${config.relays[index]}${config.relays.length>1?`（第 ${index+1} 个，共 ${config.relays.length} 个）`:''}`;
+   el('relay-status').textContent=`中继：${room.relays[index]}${room.relays.length>1?`（第 ${index+1} 个，共 ${room.relays.length} 个）`:''}`;
    status(changed?'已换到另一个中继，正在重新确认成员……':'已连上中继，正在确认其他成员……');
   }),
   onmessage:m=>{const ws=session.ws;session.run(()=>{if(ws===session.ws)return session.incoming(m);});},

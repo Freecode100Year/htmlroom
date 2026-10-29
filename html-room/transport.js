@@ -1,4 +1,4 @@
-import { validate, relayEntry, relayKind, relayUrl, cspSource } from './crypto.js';
+import { validate, relayEntry, relayKind, relayUrl, connectSources } from './crypto.js';
 // The page that can open this room from a link: a classic relay's /hr.html, or
 // for a decentralized room whose relays are all bc paths on one server, that
 // server's page. Other relay mixes have no web entry; use the file.
@@ -33,5 +33,5 @@ export async function fillTemplate(template,config,allowed,scriptHash,styleHash,
  const csp=`default-src 'none'; script-src 'sha256-${scriptHash}'; style-src 'sha256-${styleHash}'; connect-src 'none'; base-uri 'none'; form-action 'none'`;
  const marker=`<meta http-equiv="Content-Security-Policy" content="${csp}">`;
  if(!template.includes(marker))throw Error('模板 CSP 无效');
- return template.replace(marker,`<meta http-equiv="Content-Security-Policy" content="${csp.replace("connect-src 'none'",`connect-src ${config.relays.map(cspSource).join(' ')}`)}">`).replace(previewHelp({}),previewHelp(config)).replace('<script id="pt-room-config" type="application/json">{}</script>',`<script id="pt-room-config" type="application/json">${escapeConfig(config)}</script>`);
+ return template.replace(marker,`<meta http-equiv="Content-Security-Policy" content="${csp.replace("connect-src 'none'",`connect-src ${connectSources(config).join(' ')}`)}">`).replace(previewHelp({}),previewHelp(config)).replace('<script id="pt-room-config" type="application/json">{}</script>',`<script id="pt-room-config" type="application/json">${escapeConfig(config)}</script>`);
 }

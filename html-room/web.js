@@ -25,7 +25,7 @@ function openFragment(fragment){
  try{
   const config=configFromHash(fragment);
   if(!linkable(config.relays))throw Error('网页入口仅允许预设中继，请用房间文件连接其他中继。');
-  boot(config);
+  boot(config,{allowCustom:false});
  }catch{el('status').textContent='房间链接打不开：链接不完整，或者它用的中继本站不支持。请让对方重发链接，或直接用房间文件。';el('enter').disabled=true;}
 }
 addEventListener('hashchange',()=>{if(location.hash)openFragment(location.hash);});
@@ -40,7 +40,7 @@ else{
    const relays=relayList(el('mk-relay').value),password=el('mk-pass').value;
    if(password && new TextEncoder().encode(password).length>1024)throw Error('口令过长');
    // Submitted canonical sources form the explicit file generation allowlist.
-   const config=await makeConfig(relays,password||undefined);
+   const config=await makeConfig(relays,password||undefined,{custom:el('mk-custom').checked});
    const html=await filledTemplate(config);
    if(downloadUrl)URL.revokeObjectURL(downloadUrl);
    downloadUrl=URL.createObjectURL(new Blob([html],{type:'text/html'}));
@@ -60,7 +60,7 @@ else{
    const file=el('cv-file').files?.[0];if(!file)throw Error('请先选择房间文件');
    if(file.size>400000)throw Error('这个文件太大了，不是房间文件');
    let old;try{old=configFromRoomHtml(await file.text());}catch{throw Error('读不出房间信息。如果是很早的旧版文件，请重新创建房间');}
-   const config=withRelays(old,el('cv-relay').value);
+   const config=withRelays(old,el('cv-relay').value,el('cv-custom').checked);
    const html=await filledTemplate(config);
    if(convertUrl)URL.revokeObjectURL(convertUrl);
    convertUrl=URL.createObjectURL(new Blob([html],{type:'text/html'}));

@@ -6,7 +6,7 @@ Master never reaches relay. WebSocket subprotocol access is sensitive bearer aut
 
 Memory-only identities/messages/queues, no cookies/localStorage/IndexedDB, random session deviceId. Files saved by users necessarily persist master/wrapped master. Injectable storage adapter must be explicit and must not silently persist identities.
 
-Meta CSP: default-src none; exact executable-script/style hashes, exact relay connect-src, no broad schemes, no blob images, no inline style attributes. Meta cannot enforce frame-ancestors, and cannot defend a replaced/tampered entire HTML. Verify file/script hashes through an independent trusted channel. JSON config is intentionally mutable per room and not executable.
+Meta CSP: default-src none; exact executable-script/style hashes, exact relay connect-src (except custom-relay files, below), no broad schemes, no blob images, no inline style attributes. Meta cannot enforce frame-ancestors, and cannot defend a replaced/tampered entire HTML. Verify file/script hashes through an independent trusted channel. JSON config is intentionally mutable per room and not executable.
 
 Optional #hr1= entry can expose master to the hosting page's code; it is not equivalent to a verified offline file. No third-party code. Relay can deny, reorder, drop and misrepresent presence; safety code verification via independent channel matters. Shared master holders can introduce their own identities. No claim of anonymity against traffic analysis, protection on compromised devices, or independently audited ML-KEM.
 
@@ -35,3 +35,7 @@ V3 把入房、编号、在线名单和发送者标注从中继移到成员之�
 所有帧同时发往全部中继：可用性取决于至少一个中继可达，不会因中继不同而分裂；但每个中继都能看到全部帧的元数据，中继越多元数据暴露面越大。公共 Nostr 中继和 MQTT 代理由第三方运营，可能记录、限流、拒绝或延迟；Nostr 规范要求不存储 20000–29999 临时事件，但无法验证。Nostr 签名密钥每次会话随机生成，不与任何身份关联；同一会话内的事件可被关联。中继可以选择性丢弃或延迟帧，造成「在线」误判或消息丢失，回执机制会显示未确认。
 
 单文件 Go 中继默认接受任何 Origin（帧已端到端加密），可用 `-allow-origin` 限制网页来源；它不写磁盘、不记录 topic 或地址。`relay-quickstart.sh` 下载的中继强制校验 Release 中的 SHA-256，但该校验和与文件来自同一 Release，不能替代对仓库和 Release 来源的独立核实；cloudflared 由 Cloudflare 官方 Release 提供，临时隧道的流量经过 Cloudflare。
+
+## 文件内自定义中继
+
+默认生成的文件带 `custom: true`，CSP 允许连接任意 `wss:` 源和本机回环 WS，以便持有文件的人改用自己的中继。可执行脚本和样式仍由 SHA-256 固定，页面只连接用户在输入框中填写或文件中列出的中继，主密钥从不发给中继；因此失去的是「文件只能连列出的中继」这层纵深防护。风险主要是社会工程：被诱导填入攻击者中继的成员会把连接元数据（V2 还包括入房 access 凭证，可被用来占座）交给对方，但对方仍无法解密或伪造消息，安全码核对照常有效。不同成员填不同经典中继时彼此看不到消息。需要严格限制时，创建时关闭该选项（CLI `--strict`）。

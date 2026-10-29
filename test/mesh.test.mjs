@@ -131,3 +131,28 @@ test('frames reach every member through any one surviving relay, without duplica
   await wait(100);
   assert.equal(a.seen.frames.filter(([, type]) => type === 'key').length, 1, 'two relays, one delivery');
 });
+
+test('custom-relay files: wider CSP only when asked, typed relays change routing not keys', async () => {
+  const { sessionRelays } = await import('../html-room/crypto.js');
+  const { checkHtml } = await import('../scripts/check-html-room.mjs');
+  const strict = await makeConfig('wss://a.example', 'pw'), open = await makeConfig('wss://a.example', 'pw', { custom: true });
+  assert.equal(strict.custom, undefined); assert.equal(open.custom, true);
+  assert.equal(Object.keys(open).at(-1), 'custom');
+  assert.throws(() => validate({ ...open, custom: false }));
+  const strictHtml = (await render(strict, strict.relays)).html, openHtml = await render(open, open.relays);
+  assert.match(strictHtml, /connect-src wss:\/\/a\.example;/);
+  assert.match(openHtml.html, /connect-src wss: ws:\/\/localhost:\* ws:\/\/127\.0\.0\.1:\* wss:\/\/a\.example;/);
+  await checkHtml(openHtml.html, openHtml.scriptHash);
+  assert.equal(sessionRelays(open, ''), open);
+  assert.equal(sessionRelays(open, '  '), open);
+  const typed = sessionRelays(open, 'wss://b.example');
+  assert.deepEqual(typed.relays, ['wss://b.example']); assert.equal(typed.roomId, open.roomId); assert.equal(typed.ciphertext, open.ciphertext);
+  const mesh = sessionRelays(open, 'nostr+wss://n.example bc+wss://b.example');
+  assert.equal(mesh.version, 3);
+  assert.equal((await unlock(mesh, 'pw')).roomId, open.roomId);
+  assert.throws(() => sessionRelays(strict, 'wss://b.example'), /不允许/);
+  assert.throws(() => sessionRelays(open, 'http://b.example'));
+  assert.equal(withRelays(open, 'wss://c.example').custom, true, 'converting keeps the setting');
+  assert.equal(withRelays(open, 'wss://c.example', false).custom, undefined);
+  assert.equal(withRelays(strict, 'wss://c.example', true).custom, true);
+});

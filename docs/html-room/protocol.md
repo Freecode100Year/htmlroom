@@ -47,3 +47,7 @@ Canonical 配置为 `{version:2,relays:[...],roomId,encrypted,...}`。relays 有
 传输：bc 连接 `<路径><topic>`，收发文本帧。Nostr 发送 `["EVENT", ev]`，ev 为 kind 20111、tags `[["t", topic]]`、content 为帧、使用本次会话一次性密钥的 BIP-340 签名；订阅 `["REQ", sub, {kinds:[20111], "#t":[topic], since: now-30}]`；`OK false`、`AUTH`、`CLOSED` 会提示一次。MQTT 3.1.1：CONNECT（clean session、keepalive 60、随机 client id）、SUBSCRIBE `htmlroom/<topic>` QoS 0、PUBLISH QoS 0、每 30 秒 PINGREQ。各传输独立以 1–30 秒指数退避重连。
 
 安全差异见 [安全模型](security-model.md#去中心化中继v3)。
+
+## 自定义中继（custom）
+
+V2/V3 配置可选字段 `custom`，只能为 `true`（缺省表示不允许）。为 true 时文件 CSP connect-src 在精确中继源之前加 `wss: ws://localhost:* ws://127.0.0.1:*`，进房前可输入本次使用的中继列表；输入经 `relayList` 规范化后替换 relays 并按类型设定 version，其余字段不变（`sessionRelays`）。custom 不参与任何派生和 AAD，读取文件仍要求整份 HTML 与 `render(config)` 一致。
