@@ -61,7 +61,7 @@ try {
   for (const m of members) {
     await m.locator('#relay-status').filter({ hasText: relayB }).waitFor({ timeout: 15000 });
     await m.locator('#presence').filter({ hasText: '在线 2 人' }).waitFor({ timeout: 15000 });
-    await m.locator('#status').filter({ hasText: '已建立签名混合加密连接' }).waitFor({ timeout: 15000 });
+    await m.locator('#status').filter({ hasText: '已加密连接' }).waitFor({ timeout: 15000 });
   }
   await members[0].locator('#text').fill('自建中继你好'); await members[0].locator('#send').click();
   await members[1].locator('#messages li').filter({ hasText: '自建中继你好' }).waitFor({ timeout: 10000 });

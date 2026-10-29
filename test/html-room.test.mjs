@@ -58,7 +58,7 @@ test('HTML Room v3 signed chat and receipt, replay and forged receipt rejection'
  a.queue('secret chat');await a.serial;const msg=frames.find(([,m])=>m.type==='msg')[1];await drain();
  assert.equal(events[1].filter(([k])=>k==='message').length,1);
  await b.incoming(msg);assert.equal(events[1].filter(([k])=>k==='message').length,1);
- await b.flush();await drain();assert.ok(events[0].some(([k,v])=>k==='delivery'&&v.text==='客户端确认 1/1'));
+ await b.flush();await drain();assert.ok(events[0].some(([k,v])=>k==='delivery'&&v.text==='已送达 1/1'));
  const h=[...a.own.keys()][0];const own=a.own.get(h);own.confirmed.clear();
  const fake={type:'seen',from:2,h:'0.999',iv:msg.iv,ct:msg.ct};await assert.rejects(a.incoming(fake));assert.equal(own.confirmed.size,0);
 });

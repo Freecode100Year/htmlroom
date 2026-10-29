@@ -47,7 +47,7 @@ try {
     for (const page of pages) {
       await page.locator('#relay-status').filter({ hasText: relays[index] }).waitFor({ timeout: 12000 });
       await page.locator('#presence').filter({ hasText: '在线 2 人' }).waitFor({ timeout: 12000 });
-      await page.locator('#status').filter({ hasText: '已建立签名混合加密连接' }).waitFor({ timeout: 12000 });
+      await page.locator('#status').filter({ hasText: '已加密连接' }).waitFor({ timeout: 12000 });
     }
   };
   const send = async (sender, text) => {
@@ -67,6 +67,7 @@ try {
 
   const maker = await browser.newPage();
   await maker.goto(`http://127.0.0.1:${port}/`);
+  await maker.locator('#mk-advanced summary').click();
   await maker.locator('#mk-relay').fill(relays.join(', ')); await maker.locator('#mk-make').click();
   await maker.locator('#mk-out').waitFor({ state: 'visible' });
   assert.equal(await maker.locator('#mk-link-row').isHidden(), true, 'hosted entry cannot expand its trusted relay list');
@@ -75,7 +76,7 @@ try {
   assert.deepEqual(JSON.parse(html.match(/type="application\/json">(.*?)<\/script>/s)[1]).relays, relays);
   let opened = 0; maker.on('websocket', () => opened++);
   await maker.goto(`http://127.0.0.1:${port}/hr.html${fragmentFor(config)}`);
-  await maker.getByText(/房间链接无效/).waitFor(); assert.equal(opened, 0);
+  await maker.getByText(/房间链接打不开/).waitFor(); assert.equal(opened, 0);
   console.log('PASS: two real relays, failover, bidirectional backup chat, primary recovery, maker and hosted allowlist');
 } finally {
   await browser?.close(); await stop(0); await stop(1); await rm(dir, { recursive: true, force: true });

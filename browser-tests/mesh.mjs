@@ -43,7 +43,7 @@ try {
   await send(0, '四个中继同时在线');
   await pages[1].locator('#messages li').filter({ hasText: '四个中继同时在线' }).waitFor();
   assert.equal(await pages[1].locator('#messages li', { hasText: '四个中继同时在线' }).count(), 1, 'no duplicates');
-  await pages[0].locator('#messages li small').filter({ hasText: /客户端确认 2\/2/ }).first().waitFor({ timeout: 20000 });
+  await pages[0].locator('#messages li small').filter({ hasText: /已送达 2\/2/ }).first().waitFor({ timeout: 20000 });
 
   await node.stop(); await go?.stop();
   for (const page of pages) await page.locator('#relay-status').filter({ hasText: '已连接 2/' }).waitFor({ timeout: 20000 });
@@ -64,6 +64,7 @@ try {
   try {
     const maker = await browser.newPage(); maker.on('pageerror', e => errors.push(e.message));
     await maker.goto(`http://127.0.0.1:${site.port}/`);
+    await maker.locator('#mk-advanced summary').click();
     await maker.locator('#mk-mesh').click();
     assert.equal(await maker.locator('#mk-relay').inputValue(), `bc+${site.url}/bc/`);
     await maker.locator('#mk-make').click();

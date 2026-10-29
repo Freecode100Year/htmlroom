@@ -8,7 +8,7 @@ export class Session {
     Object.assign(this,{d:derived,config,store:storage,emit,deviceId:hex(random(16)),present:[],pins:new Map(),seen:new Map(),own:new Map(),queued:[],receipts:[],received:new Map(),group:null,ws:null,serial:Promise.resolve()});
     this.store.set('deviceId',this.deviceId);
   }
-  run(fn) { this.serial=this.serial.then(()=>{if(!this.stopped)return fn();}).catch(()=>this.emit('notice','收到无法验证的数据，已忽略。'));return this.serial; }
+  run(fn) { this.serial=this.serial.then(()=>{if(!this.stopped)return fn();}).catch(()=>this.emit('notice','收到一条无法验证的数据，已忽略。'));return this.serial; }
   send(frame) { if(!this.stopped && this.ws?.readyState===1)this.ws.send(JSON.stringify(frame)); }
   async announce(hello=false) {
     if(!this.group)return;
@@ -37,7 +37,7 @@ export class Session {
     }
     if(m.from===this.group.me) {
       const own=this.own.get(m.h);
-      if(m.type==='msg' && own && own.frame.iv===m.iv && own.frame.ct===m.ct){own.echo=true;this.emit('delivery',{id:own.id,text:'已提交中继'});}
+      if(m.type==='msg' && own && own.frame.iv===m.iv && own.frame.ct===m.ct){own.echo=true;this.emit('delivery',{id:own.id,text:'已发出'});}
       return;
     }
     if(!this.present.includes(m.from))return;
@@ -47,7 +47,7 @@ export class Session {
       const pinned=this.pins.get(m.from);
       const p=await this.group.receive(a,m.from); // verifies ECDSA before pinning
       if(!p)return;
-      if(pinned && pinned!==p.spk){this.halt();this.emit('fatal','成员签名身份发生变化，请通过独立渠道核实并重新打开文件。');return;}
+      if(pinned && pinned!==p.spk){this.halt();this.emit('fatal','有成员的身份变了，可能有人冒充。请打电话等方式确认后，重新打开房间。');return;}
       this.pins.set(m.from,p.spk);
       if(p?.lost)p.sent=-1;
       await this.announce();await this.update();return;
@@ -62,7 +62,7 @@ export class Session {
       if(a && Array.isArray(a.l) && a.l.length<=25)for(const item of a.l){
         if(!Array.isArray(item) || item[0]!==this.group.me)continue;
         const own=this.own.get(item[1]);
-        if(own && own.targets.includes(m.from)){own.confirmed.add(m.from);this.emit('delivery',{id:own.id,text:`客户端确认 ${own.confirmed.size}/${own.targets.length}`});}
+        if(own && own.targets.includes(m.from)){own.confirmed.add(m.from);this.emit('delivery',{id:own.id,text:`已送达 ${own.confirmed.size}/${own.targets.length}`});}
       }
     } else {
       const got=checkEnvelope(opened.text,m,this.seen);
@@ -79,7 +79,7 @@ export class Session {
   queue(text) {
     if(this.stopped)return false;
     text=checkMessage(text);if(!text || this.queued.length>=20)return false;
-    const id=hex(random(8));this.queued.push({id,text});this.emit('message',{id,from:'我',text});this.emit('delivery',{id,text:'排队中'});
+    const id=hex(random(8));this.queued.push({id,text});this.emit('message',{id,from:'我',text});this.emit('delivery',{id,text:'发送中……'});
     this.run(()=>this.flush());return true;
   }
   async flush() {
@@ -103,12 +103,12 @@ export class Session {
   async retryPending(){
     for(const own of this.own.values()){
       if(!own.echo && Date.now()-own.at>8000 && (own.retries??0)<3){this.send(own.frame);own.at=Date.now();own.retries=(own.retries??0)+1;}
-      if(!own.echo && (own.retries??0)>=3)this.emit('delivery',{id:own.id,text:'中继提交未确认，请核实后重发'});
+      if(!own.echo && (own.retries??0)>=3)this.emit('delivery',{id:own.id,text:'可能没发出去，请确认后重发'});
     }
   }
   resetRelay() {
     for (const own of this.own.values()) if (own.confirmed.size < own.targets.length || !own.echo)
-      this.emit('delivery', { id: own.id, text: '已切换中继，送达状态未知，请核实后重发' });
+      this.emit('delivery', { id: own.id, text: '换了中继，不确定对方是否收到' });
     this.group=null;this.resume=null;this.present=[];this.pins.clear();this.seen.clear();
     this.own.clear();this.received.clear();this.receipts=[];this.nextSend=0;this.lastAnnounce=0;
     this.emit('presence',0);this.emit('relay-change');

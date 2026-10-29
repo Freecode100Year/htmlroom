@@ -10,30 +10,30 @@ let session;
 const rows=new Map();
 function emit(kind,value){
  if(kind==='notice'||kind==='fatal')status(value);
- if(kind==='relay-change'){el('safety').textContent='中继已切换，正在重新验证成员；请重新核对安全码。';}
- if(kind==='presence')el('presence').textContent=`在线 ${value} 人（${config.version===3?'成员心跳估计':'中继报告'}）`;
- if(kind==='ready'){status('已建立签名混合加密连接');el('safety').textContent=`安全码：${value}，请通过独立渠道核对。`;}
+ if(kind==='relay-change'){el('safety').textContent='换了中继，正在重新确认成员。请再核对一次安全码。';}
+ if(kind==='presence')el('presence').textContent=`在线 ${value} 人`;
+ if(kind==='ready'){status('✅ 已加密连接，可以聊天了');el('safety').textContent=`安全码：${value}。请打电话或当面和对方核对，一样才说明没有人冒充。`;}
  if(kind==='message'){const li=document.createElement('li');li.textContent=`${value.from}：${value.text}`;const small=document.createElement('small');li.append(small);el('messages').append(li);rows.set(value.id,small);if(rows.size>200){rows.delete(rows.keys().next().value);el('messages').firstChild.remove();}}
  if(kind==='delivery' && rows.has(value.id))rows.get(value.id).textContent=value.text;
 }
-if(!globalThis.crypto?.subtle || !globalThis.WebSocket || !globalThis.TextEncoder){status('此预览环境不支持所需脚本或加密 API，请使用支持的浏览器打开；iOS、微信和 QQ 本地预览需实测。');el('enter').disabled=true;}
+if(!globalThis.crypto?.subtle || !globalThis.WebSocket || !globalThis.TextEncoder){status('这个预览打不开聊天室，请用 Safari、Chrome 等浏览器打开这个文件。');el('enter').disabled=true;}
 else if(config.version){
- try{validate(config);status(config.encrypted?'请输入口令解锁；解锁前不会连接中继。':'无口令文件：点击进入房间。');el('password').disabled=false;el('enter').disabled=false;}catch{status('配置无效，请重新生成文件。');el('enter').disabled=true;}
-}else{status('无秘密模板：请使用生成器创建房间文件。');el('enter').disabled=true;}
+ try{validate(config);status(config.encrypted?'请输入口令，然后点「进入房间」。':'点「进入房间」开始聊天。');el('password').disabled=false;el('enter').disabled=false;}catch{status('房间文件有问题，请让对方重新发一份。');el('enter').disabled=true;}
+}else{status('这是空白模板，请先在创建页面里创建房间。');el('enter').disabled=true;}
 el('unlock').addEventListener('submit',async e=>{e.preventDefault();if(busy||Date.now()<nextUnlock)return;busy=true;el('enter').disabled=true;try{
  const derived=await unlock(config,el('password').value);el('password').value='';session=new Session(derived,config,{emit});el('unlock').hidden=true;el('chat').hidden=false;
  if(config.version===3){
   const connection=new MeshConnection(config.relays,{
    derived:session.d,
-   onhello:n=>session.run(()=>{session.ws=connection.socket;status('已加入去中心化房间，正在验证成员密钥…');return session.incoming({type:'hello',you:n,resume:''});}),
+   onhello:n=>session.run(()=>{session.ws=connection.socket;status('已进入房间，正在确认其他成员……');return session.incoming({type:'hello',you:n,resume:''});}),
    onmembers:list=>session.run(()=>session.incoming({type:'members',members:list})),
    onframe:(frame,from)=>session.run(()=>session.incoming({...frame,from})),
    onstatus:text=>{el('relay-status').textContent=text;},
    onnotice:status,
-   onfatal:text=>{session.halt();status(text||'会话结束，请重新打开房间文件。');}
+   onfatal:text=>{session.halt();status(text||'聊天已结束，请重新打开房间文件。');}
   });
   session.connection=connection;connection.start();
-  status('正在连接去中心化中继并确认成员编号…');
+  status('正在连接……');
  }else{
  const connection=new RelayConnection(config.relays,{
   roomId:config.roomId,
@@ -41,13 +41,13 @@ el('unlock').addEventListener('submit',async e=>{e.preventDefault();if(busy||Dat
   onactive:(ws,index,changed)=>session.run(()=>{
    if(changed)session.resetRelay();
    session.ws=ws;
-   el('relay-status').textContent=`当前中继：${config.relays[index]}（优先级 ${index+1}/${config.relays.length}）`;
-   status(changed?'已切换中继，正在重新验证成员；不同中继上的成员暂时无法互通。':'已连接中继，正在验证成员密钥…');
+   el('relay-status').textContent=`中继：${config.relays[index]}${config.relays.length>1?`（第 ${index+1} 个，共 ${config.relays.length} 个）`:''}`;
+   status(changed?'已换到另一个中继，正在重新确认成员……':'已连上中继，正在确认其他成员……');
   }),
   onmessage:m=>{const ws=session.ws;session.run(()=>{if(ws===session.ws)return session.incoming(m);});},
-  ondisconnect:()=>{session.ws=null;el('relay-status').textContent='当前中继：已断开，正在按优先级重试';emit('presence',0);},
+  ondisconnect:()=>{session.ws=null;el('relay-status').textContent='中继断开了，正在重连……';emit('presence',0);},
   onnotice:status,
-  onfatal:()=>{session.halt();status('连接被拒绝或会话结束，请检查房间文件、中继配置或人数限制后重新打开。');}
+  onfatal:()=>{session.halt();status('进不去房间：可能人满了、房间文件不对，或中继拒绝了连接。请检查后重新打开。');}
  });
  session.connection=connection;connection.start();
  }
@@ -57,9 +57,9 @@ el('unlock').addEventListener('submit',async e=>{e.preventDefault();if(busy||Dat
    await session.flush();await session.retryPending();
   }
  }),1600);
-}catch{attempts++;nextUnlock=Date.now()+Math.min(30000,1000*2**Math.min(attempts,5));el('password').value='';status('解锁失败：口令或文件不正确。稍后再试。本机节流不能阻止离线猜测。');}
+}catch{attempts++;nextUnlock=Date.now()+Math.min(30000,1000*2**Math.min(attempts,5));el('password').value='';status('解锁失败：口令不对，或文件不完整。请等几秒再试。');}
  finally{busy=false;setTimeout(()=>{el('enter').disabled=false;},Math.max(0,nextUnlock-Date.now()));}});
-el('chat').addEventListener('submit',e=>{e.preventDefault();if(session?.queue(el('text').value))el('text').value='';else status('消息为空、过长或队列已满。');});
+el('chat').addEventListener('submit',e=>{e.preventDefault();if(session?.queue(el('text').value))el('text').value='';else status('发不出去：消息是空的、太长了，或者发得太快了。');});
 
 addEventListener('pagehide',()=>session?.halt());
 

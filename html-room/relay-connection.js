@@ -28,7 +28,7 @@ export class RelayConnection {
     catch { this.fail(r); return; }
     r.timeout = setTimeout(() => this.fail(r), 10000);
     r.ws.onerror = () => {
-      if (!r.retired && !r.probe) this.onnotice('WSS 握手失败可能是网络、Origin、鉴权或证书信任问题。正在按优先级重试；请使用有效证书，勿关闭证书校验。');
+      if (!r.retired && !r.probe) this.onnotice('连不上中继（可能是网络、证书或权限问题），正在重试……');
     };
     r.ws.onclose = e => this.fail(r, e.code);
     r.ws.onmessage = e => {
@@ -82,7 +82,7 @@ export class RelayConnection {
     clearTimeout(this.retry);
     this.retry = setTimeout(() => this.connect((r.index + 1) % this.relays.length), this.backoff);
     this.backoff = Math.min(this.backoff * 2, 30000);
-    if (code !== 1006) this.onnotice('连接中断，正在按列表顺序切换中继；不同中继上的成员暂时无法互通。');
+    if (code !== 1006) this.onnotice('连接断了，正在换一个中继重试……');
   }
   stop() {
     this.stopped = true; clearTimeout(this.retry); clearInterval(this.probeTimer); clearInterval(this.heartbeat);

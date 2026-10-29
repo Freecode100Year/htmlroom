@@ -121,7 +121,7 @@ test('/hr/ drops table, ref and file frames without closing, and passes key, see
   assert.ok(b.frames.some((f) => f.type === 'seen'));
   assert.ok(!b.frames.some((f) => f.type === 'file'));
   assert.ok(!b.frames.some((f) => f.type === 'ref' || f.type === 'cards'));
-  // The sender gets its own message back: the page's "已提交中继".
+  // The sender gets its own message back: the page's "已发出".
   assert.ok(await a.frame('msg', (f) => f.from === 1));
   assert.equal(a.closed, null);
   a.ws.close(4000); b.ws.close(4000);

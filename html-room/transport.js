@@ -13,7 +13,7 @@ export function fragmentFor(config){validate(config);return '#hr1='+encode(JSON.
 // Static HTML: still usable when a file preview disables JavaScript or CSP blocks boot.
 export function previewHelp(config){
  const base=config.version?webEntry(config):'', link=base ? `${base}/hr.html${fragmentFor(config)}` : '';
- return `<section id="preview-help"><p>若此提示一直显示，当前文件预览未能运行聊天脚本。iOS「文件」、微信或 QQ 的预览可能无法使用此房间；输入口令不会生效。请在 Safari 等浏览器中打开房间网页链接。</p>${link?`<p><a id="preview-link" href="${link.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">在浏览器中打开同一房间</a>（若无法跳转，请复制链接到 Safari 地址栏）。</p><p>链接包含加入房间的能力，请谨慎分发。网页代码可读取链接中的房间配置，其安全性不等同于验证过的离线文件；中继须提供 /hr.html 网页入口。</p>`:''}</section>`;
+ return `<section id="preview-help"><p>页面没有启动？微信、QQ 或手机「文件」App 的预览打不开聊天室，请用 Safari、Chrome 等浏览器打开这个文件。</p>${link?`<p><a id="preview-link" href="${link.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">用浏览器打开这个房间</a>（点了没反应，就复制这个链接，粘贴到浏览器地址栏）。</p><p>注意：这个链接和文件一样是房间钥匙，别随便转发。</p>`:''}</section>`;
 }
 export function configFromHash(hash){
  if(typeof hash!=='string'||!/^#hr1=[A-Za-z0-9_-]+$/.test(hash)||hash.length>8192)throw Error('房间链接格式或长度无效');

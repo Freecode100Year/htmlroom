@@ -21,15 +21,15 @@ export async function derive(master) {
 }
 const HOST = /^(?:[a-z0-9.-]+|\[[0-9a-f:]+\])$/, LOOPBACK = ['localhost','127.0.0.1','[::1]'];
 function checkUrl(u) {
-  if (!HOST.test(u.hostname)) throw Error('中继主机名含不安全字符');
-  if (u.username || u.password || u.search || u.hash || !['ws:','wss:'].includes(u.protocol)) throw Error('中继必须是 WS/WSS 地址，不含账号、查询参数或 #');
-  if (u.protocol === 'ws:' && !LOOPBACK.includes(u.hostname)) throw Error('远程中继必须使用 WSS');
+  if (!HOST.test(u.hostname)) throw Error('中继地址里有不支持的字符');
+  if (u.username || u.password || u.search || u.hash || !['ws:','wss:'].includes(u.protocol)) throw Error('中继地址要以 wss:// 开头，不能带账号、? 或 #');
+  if (u.protocol === 'ws:' && !LOOPBACK.includes(u.hostname)) throw Error('中继地址要用 wss://（加密连接）');
 }
 // Classic relay (this project's /hr/ protocol, version 2 rooms): an exact origin.
 export function relayOrigin(s) {
   const u = new URL(s);
   checkUrl(u);
-  if (u.pathname !== '/') throw Error('中继必须是精确的 WS/WSS 源');
+  if (u.pathname !== '/') throw Error('经典中继只填域名，不要带路径，例如 wss://relay.example.com');
   return u.origin;
 }
 // Decentralized relays (version 3 rooms) carry a kind prefix:
@@ -51,8 +51,8 @@ export function relayEntry(s) {
   const u = new URL(relayUrl(s.trim()));
   checkUrl(u);
   let path = u.pathname;
-  if (!PATH.test(path) || path.includes('//')) throw Error('中继路径含不安全字符');
-  if (kind === 'bc') { if (path === '/') path = '/bc/'; if (!path.endsWith('/')) throw Error('bc 中继路径须以 / 结尾'); }
+  if (!PATH.test(path) || path.includes('//')) throw Error('中继地址的路径里有不支持的字符');
+  if (kind === 'bc') { if (path === '/') path = '/bc/'; if (!path.endsWith('/')) throw Error('bc+ 地址的路径要以 / 结尾'); }
   else if (path === '/') path = '';
   return `${kind}+${u.origin}${path}`;
 }
@@ -61,7 +61,7 @@ export function relayList(input) {
   const relays = [...new Set(values.map(relayEntry))];
   const mesh = relays.some(r => relayKind(r) !== 'hr');
   if (mesh && relays.some(r => relayKind(r) === 'hr')) throw Error('经典中继（wss://）不能与去中心化中继（bc+ / nostr+ / mqtt+）混用');
-  if (!relays.length || relays.length > (mesh ? 5 : 3)) throw Error(mesh ? '请提供 1 到 5 个不同的去中心化中继' : '请提供 1 到 3 个不同中继');
+  if (!relays.length || relays.length > (mesh ? 5 : 3)) throw Error(mesh ? '去中心化中继请填 1 到 5 个不同地址' : '请填 1 到 3 个不同的中继地址');
   return relays;
 }
 export const versionFor = relays => relays.some(r => relayKind(r) !== 'hr') ? 3 : 2;

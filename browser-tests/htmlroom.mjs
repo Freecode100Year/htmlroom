@@ -22,13 +22,13 @@ try{
  assert.equal(config.version,2);assert.equal(config.encrypted,false);assert.ok(config.master);
  await maker.goto(fragment);await maker.waitForFunction(()=>location.hash.length===0);assert.equal(new URL(maker.url()).hash.length,0);await maker.locator('#enter').click();
  await file.goto(pathToFileURL(path).href);await file.locator('#enter').click();
- for(const p of [maker,file])await p.locator('#status').filter({hasText:'已建立签名混合加密连接'}).waitFor({timeout:12000});
- await maker.locator('#text').fill('网页到文件');await maker.locator('#send').click();await file.getByText('1：网页到文件',{exact:true}).waitFor({timeout:8000});await maker.getByText('客户端确认 1/1',{exact:true}).waitFor({timeout:8000});
- await file.locator('#text').fill('文件到网页');await file.locator('#send').click();await maker.getByText('2：文件到网页',{exact:true}).waitFor({timeout:8000});await file.getByText('客户端确认 1/1',{exact:true}).waitFor({timeout:8000});
+ for(const p of [maker,file])await p.locator('#status').filter({hasText:'已加密连接'}).waitFor({timeout:12000});
+ await maker.locator('#text').fill('网页到文件');await maker.locator('#send').click();await file.getByText('1：网页到文件',{exact:true}).waitFor({timeout:8000});await maker.getByText('已送达 1/1',{exact:true}).waitFor({timeout:8000});
+ await file.locator('#text').fill('文件到网页');await file.locator('#send').click();await maker.getByText('2：文件到网页',{exact:true}).waitFor({timeout:8000});await file.getByText('已送达 1/1',{exact:true}).waitFor({timeout:8000});
  assert.deepEqual(errors,[]);assert.ok(requests.every(u=>(u.startsWith(base+'/')||u.startsWith('file:'))&&!u.includes('#')&&!u.includes(config.master)));
  for(const c of [a,b])assert.deepEqual(await c.cookies(),[]);
  for(const p of [maker,file])assert.deepEqual(await p.evaluate(async()=>[localStorage.length,sessionStorage.length,(await indexedDB.databases()).length]),[0,0,0]);
- const bad=await a.newPage();let connected=0;bad.on('websocket',()=>connected++);await bad.goto(base+'/hr.html#hr1=invalid');await bad.getByText(/房间链接无效/).waitFor();assert.equal(connected,0);
+ const bad=await a.newPage();let connected=0;bad.on('websocket',()=>connected++);await bad.goto(base+'/hr.html#hr1=invalid');await bad.getByText(/房间链接打不开/).waitFor();assert.equal(connected,0);
  const wrapped=await a.newPage();await wrapped.goto(base+'/hr.html');await wrapped.locator('#mk-gen').click();assert.equal((await wrapped.locator('#mk-pass').inputValue()).length,64);await wrapped.locator('#mk-make').click();await wrapped.locator('#mk-out').waitFor({state:'visible'});
  const encoded=new URL(await wrapped.locator('#mk-link').inputValue()).hash.slice(5);const protectedConfig=JSON.parse(Buffer.from(encoded,'base64url').toString());assert.equal(protectedConfig.encrypted,true);assert.equal('master'in protectedConfig,false);
  console.log(JSON.stringify({suite:'integrated hosted maker/Fragment + file interop',checks:9,result:'pass',browser:browser.version(),consoleErrors:0,thirdPartyRequests:0}));

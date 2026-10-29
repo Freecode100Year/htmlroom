@@ -105,9 +105,9 @@ class NostrLink extends Link {
     let m; try { m = JSON.parse(x); } catch { return; }
     if (!Array.isArray(m)) return;
     if (m[0] === 'EVENT' && m[1] === this.sub && m[2]?.kind === NOSTR_KIND && typeof m[2].content === 'string') this.mesh.receive(m[2].content);
-    else if (m[0] === 'OK' && m[2] === false) this.notice(`Nostr 中继拒绝消息（${m[3] ?? ''}）`);
-    else if (m[0] === 'AUTH') this.notice('Nostr 中继要求登录（NIP-42），暂不支持，请换用其他中继');
-    else if (m[0] === 'CLOSED' && m[1] === this.sub) { this.notice(`Nostr 中继关闭订阅（${m[2] ?? ''}）`); this.fail(); }
+    else if (m[0] === 'OK' && m[2] === false) this.notice(`这个 Nostr 中继拒绝了消息（${m[3] ?? ''}），可换一个`);
+    else if (m[0] === 'AUTH') this.notice('这个 Nostr 中继要求登录，暂不支持，请换一个');
+    else if (m[0] === 'CLOSED' && m[1] === this.sub) { this.notice(`这个 Nostr 中继停止了接收（${m[2] ?? ''}），可换一个`); this.fail(); }
   }
   send(wire) { this.ws.send(JSON.stringify(['EVENT', nostrEvent(this.mesh.nostrKey, this.mesh.d.topic, wire)])); }
 }
@@ -149,10 +149,10 @@ class MqttLink extends Link {
     this.buf = parsed.rest.slice();
     for (const p of parsed.packets) {
       if (p.type === 2) { // CONNACK
-        if (p.body[1] !== 0) { this.notice(`MQTT 代理拒绝连接（返回码 ${p.body[1]}）`); this.fail(); return; }
+        if (p.body[1] !== 0) { this.notice(`这个 MQTT 服务器拒绝了连接（代码 ${p.body[1]}），可换一个`); this.fail(); return; }
         this.ws.send(mqttSubscribe(this.topic()));
       } else if (p.type === 9) { // SUBACK
-        if (p.body[2] === 0x80) { this.notice('MQTT 代理拒绝订阅'); this.fail(); return; }
+        if (p.body[2] === 0x80) { this.notice('这个 MQTT 服务器拒绝了订阅，可换一个'); this.fail(); return; }
         this.ready();
         this.keepalive = setInterval(() => { try { this.ws?.send(Uint8Array.of(0xc0, 0)); } catch {} }, 30000);
       } else if (p.type === 3) { // PUBLISH
@@ -195,7 +195,7 @@ export class MeshConnection {
     // Not numbered yet: say so, and members answer at once instead of at their
     // next heartbeat, so the claim below sees every number already taken.
     if (open && !this.me && !this.stopped) this.broadcast({ k: 'hb' }).catch(() => {});
-    this.onstatus(open ? `去中心化中继：已连接 ${open}/${this.links.length}（消息同时发往全部中继）` : '去中心化中继：全部断开，正在重试');
+    this.onstatus(open ? `中继：已连接 ${open}/${this.links.length} 个（消息同时走所有中继）` : '中继全部断开了，正在重连……');
   }
   async broadcast(inner) {
     const open = this.links.filter(l => l.open);

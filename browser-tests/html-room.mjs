@@ -19,12 +19,12 @@ try{
  const pages=await Promise.all(contexts.map(c=>c.newPage()));
  const errors=[],requests=[],sockets=[];
  for(const p of pages){p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error')errors.push(m.text());});p.on('request',req=>requests.push(req.url()));p.on('websocket',w=>sockets.push(w.url()));await p.goto(pathToFileURL(path).href);await p.locator('#enter').click();}
- for(const p of pages)await p.locator('#status').filter({hasText:'已建立签名混合加密连接'}).waitFor({timeout:15000});
+ for(const p of pages)await p.locator('#status').filter({hasText:'已加密连接'}).waitFor({timeout:15000});
  const send=async(p,text)=>{await p.locator('#text').fill(text);await p.locator('#send').click();};
  await send(pages[0],'第一端 <script> 不执行');await pages[1].getByText('1：第一端 <script> 不执行',{exact:true}).waitFor({timeout:10000});
- await pages[0].getByText('客户端确认 1/1',{exact:true}).waitFor({timeout:10000});
+ await pages[0].getByText('已送达 1/1',{exact:true}).waitFor({timeout:10000});
  await send(pages[1],'第二端 双向确认');await pages[0].getByText('2：第二端 双向确认',{exact:true}).waitFor({timeout:10000});
- await pages[1].getByText('客户端确认 1/1',{exact:true}).waitFor({timeout:10000});
+ await pages[1].getByText('已送达 1/1',{exact:true}).waitFor({timeout:10000});
  assert.deepEqual(errors,[]);assert.ok(requests.every(u=>u.startsWith('file:')));assert.ok(sockets.every(u=>u===`${relay}/hr/${config.roomId}`));
  for(const c of contexts)assert.deepEqual(await c.cookies(),[]);
  for(const p of pages)assert.equal(await p.evaluate(async()=>({local:localStorage.length,session:sessionStorage.length,dbs:(await indexedDB.databases()).length})).then(x=>JSON.stringify(x)),JSON.stringify({local:0,session:0,dbs:0}));
@@ -46,6 +46,6 @@ try{
  tlsServer=spawn(process.execPath,['server/server.mjs'],{env:{...process.env,HOST:'127.0.0.1',PORT:String(tlsPort),TLS_CERT:cert,TLS_KEY:key},stdio:'ignore'});
  await new Promise((resolve,reject)=>{const timer=setTimeout(resolve,700);tlsServer.once('exit',()=>{clearTimeout(timer);reject(Error('TLS fixture server exited'));});});
  const tlsConfig=await makeConfig(tlsRelay),tlsHtml=await render(tlsConfig,[tlsRelay]);const tlsPath=dir+'/tls.html';await writeFile(tlsPath,tlsHtml.html,{mode:0o600});
- const tp=await contexts[0].newPage();await tp.goto(pathToFileURL(tlsPath).href);await tp.locator('#enter').click();await tp.locator('#status').filter({hasText:'证书信任问题'}).waitFor({timeout:7000});await tp.close();
+ const tp=await contexts[0].newPage();await tp.goto(pathToFileURL(tlsPath).href);await tp.locator('#enter').click();await tp.locator('#status').filter({hasText:'证书'}).waitFor({timeout:7000});await tp.close();
  console.log(JSON.stringify({browser:browser.version(),checks:11,result:'pass',fileBytes:r.bytes,scriptHash:r.scriptHash,consoleErrors:errors.length,httpExternalRequests:requests.filter(u=>!u.startsWith('file:')).length}));
 }finally{await browser?.close();server?.kill('SIGTERM');tlsServer?.kill('SIGTERM');await rm(dir,{recursive:true,force:true});}
