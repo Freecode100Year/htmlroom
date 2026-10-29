@@ -8,6 +8,8 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 
 const script = new URL('../scripts/relay-quickstart.sh', import.meta.url).pathname;
+// A POSIX sh script (Linux, macOS, BSD, WSL, Termux, OpenWrt); Windows users get the .exe.
+const skip = process.platform === 'win32' && 'POSIX shell script';
 // Async: the fake release server below runs in this same process.
 const run = (args, env = {}) => new Promise(resolve => {
   const child = spawn('sh', [script, ...args], { env: { ...process.env, ...env } });
@@ -15,7 +17,7 @@ const run = (args, env = {}) => new Promise(resolve => {
   child.on('close', code => resolve({ code, out }));
 });
 
-test('quickstart parses, detects the platform and refuses bad flags', async () => {
+test('quickstart parses, detects the platform and refuses bad flags', { skip }, async () => {
   execFileSync('sh', ['-n', script]);
   const check = await run(['--check', '--tunnel']);
   assert.equal(check.code, 0);
@@ -25,7 +27,7 @@ test('quickstart parses, detects the platform and refuses bad flags', async () =
   assert.equal((await run(['--bogus'])).code, 2);
 });
 
-test('quickstart installs only a binary matching the published checksum', async (t) => {
+test('quickstart installs only a binary matching the published checksum', { skip }, async (t) => {
   const files = new Map();
   const server = createServer((req, res) => { const f = files.get(req.url.slice(1)); if (!f) { res.writeHead(404).end(); return; } res.end(f); });
   await new Promise(r => server.listen(0, '127.0.0.1', r)); t.after(() => server.close());

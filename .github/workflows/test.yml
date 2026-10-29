@@ -30,6 +30,19 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
       - run: npm run test:pages
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+      - name: Vet, format check and cross-compile the broadcast relay
+        working-directory: relay/go
+        run: |
+          test -z "$(gofmt -l .)"
+          go vet ./...
+          for t in linux/amd64 linux/mipsle windows/amd64 darwin/arm64; do GOOS=${t%/*} GOARCH=${t#*/} CGO_ENABLED=0 go build -o /dev/null .; done
   worker:
     runs-on: ubuntu-latest
     env:
@@ -52,7 +65,7 @@ jobs:
       - run: |
           docker run -d --name htmlroom -p 127.0.0.1:18080:8080 htmlroom:test
           for i in $(seq 1 30); do curl -fs http://127.0.0.1:18080/healthz && break; sleep 1; done
-          curl -fs http://127.0.0.1:18080/hr.html | grep -q '创建 HTML 房间'
+          curl -fs http://127.0.0.1:18080/hr.html | grep -q '创建加密聊天室'
   installer:
     runs-on: ubuntu-latest
     timeout-minutes: 15

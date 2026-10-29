@@ -28,7 +28,7 @@ let goBinary;
 export function goAvailable() { try { execFileSync('go', ['version'], { stdio: 'ignore' }); return true; } catch { return false; } }
 export async function goRelay(args = []) {
   if (!goBinary) {
-    goBinary = mkdtempSync(tmpdir() + '/hr-go-') + '/htmlroom-relay';
+    goBinary = mkdtempSync(tmpdir() + '/hr-go-') + '/htmlroom-relay' + (process.platform === 'win32' ? '.exe' : '');
     execFileSync('go', ['build', '-o', goBinary, '.'], { cwd: root + 'relay/go', stdio: 'ignore', env: { ...process.env, CGO_ENABLED: '0' } });
   }
   const port = 20000 + Math.floor(Math.random() * 20000);
