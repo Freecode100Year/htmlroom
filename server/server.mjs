@@ -126,7 +126,7 @@ const handler = async (req, res) => {
   }
   let path;
   try { path = decodeURIComponent(url.pathname); } catch { res.writeHead(400, PLAIN_HEADERS).end(); return; }
-  if (path === '/') { res.writeHead(302, { ...HEADERS, Location: '/hr.html' }).end(); return; }
+  if (path === '/') path = '/hr.html';
   if (!['/hr.html','/hr.js','/hr.css','/hr-template.html'].includes(path)) { res.writeHead(404, PLAIN_HEADERS).end(); return; }
   path = normalize(path).replace(/^([/\\])+/, '');
   if (path.startsWith('..') || path === '_headers') { res.writeHead(404, HEADERS).end(); return; }
@@ -259,7 +259,7 @@ server.on('upgrade', (req, socket, head) => {
   if (!m || !ROOM_ID.test(m[2])) return reject('404 Not Found');
   // Stops other web pages from connecting through a visitor's browser.
   // Programs outside a browser can send any Origin they like.
-  if (!htmlRoomOrigin(req.headers.origin, originOf(req))) return reject('403 Forbidden');
+  if (!htmlRoomOrigin(req.headers.origin, originOf(req), config.allowedOrigins)) return reject('403 Forbidden');
   // Only a page that knows the passphrase can show the access value.
   const proto = parseProtocols(req.headers['sec-websocket-protocol']);
   accessMatches(m[2], proto.access).then((ok) => {

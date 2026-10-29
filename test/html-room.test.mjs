@@ -93,3 +93,10 @@ test('HTML Room pins verified identity across relay departure and number reuse',
  assert.ok(a.stopped);assert.ok(events[0].some(([k])=>k==='fatal'));
  const length=events[0].length;await a.incoming({type:'members',members:[1,2,3]});assert.equal(events[0].length,length);assert.equal(a.queue('after halt'),false);
 });
+
+ test('HTML Room allows only the configured external HTTPS frontend',()=>{
+ const relay='https://chat.nya.je',pages='https://freecode100year.github.io';
+ assert.equal(htmlRoomOrigin(pages,relay,[pages]),true);
+ for(const origin of [null,'https://evil.example',pages+'.evil.example','http://freecode100year.github.io'])assert.equal(htmlRoomOrigin(origin,relay,[pages]),false);
+ assert.equal(htmlRoomOrigin(pages,relay),false);
+ });

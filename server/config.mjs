@@ -7,7 +7,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { ENTRY } from '../src/rules.js';
 
-export const KNOWN = ['PORT', 'HOST', 'JOIN_LIMIT', 'MAX_CONNECTIONS', 'TRUST_PROXY', 'TLS_CERT', 'TLS_KEY', 'LAN_CERTS', 'LAN_NAMES', 'ENTRY_PATH'];
+export const KNOWN = ['PORT', 'HOST', 'JOIN_LIMIT', 'MAX_CONNECTIONS', 'TRUST_PROXY', 'TLS_CERT', 'TLS_KEY', 'LAN_CERTS', 'LAN_NAMES', 'ENTRY_PATH', 'HR_ALLOWED_ORIGINS'];
 
 export function parseEnvFile(text) {
   const out = {};
@@ -56,7 +56,12 @@ export function checkConfig(env = process.env, { port = 8080, joinLimit = 30 } =
     tlsCert: env.TLS_CERT || null,
     tlsKey: env.TLS_KEY || null,
     entry: null,
+    allowedOrigins: (env.HR_ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean),
   };
+  for (const origin of c.allowedOrigins) {
+    try { const u = new URL(origin); if (u.protocol !== 'https:' || u.origin !== origin) throw Error(); }
+    catch { throw new ConfigError('HR_ALLOWED_ORIGINS 必须是逗号分隔的精确 HTTPS 源'); }
+  }
   if (env.ENTRY_PATH) {
     const e = `/${env.ENTRY_PATH.trim().replace(/^\/+|\/+$/g, '')}/`;
     if (!ENTRY.test(e)) throw new ConfigError(`ENTRY_PATH=${env.ENTRY_PATH} 不对：应为 8–64 个字母、数字、- 或 _，例如 ENTRY_PATH=k7Qp2xVm9aLd`);

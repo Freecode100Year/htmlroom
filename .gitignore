@@ -10,3 +10,4 @@ out/
 *.key
 *.log
 .DS_Store
+pages/

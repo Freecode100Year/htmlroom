@@ -6,7 +6,7 @@ const PORT = 18600 + Math.floor(Math.random() * 300);
 let server;
 before(async () => {
   server = spawn(process.execPath, [fileURLToPath(new URL('../server/server.mjs', import.meta.url))], {
-    env: { ...process.env, PORT: String(PORT), HOST: '127.0.0.1', JOIN_LIMIT: '1000', CONFIG_FILE: '' }, stdio: ['ignore', 'pipe', 'pipe']
+    env: { ...process.env, PORT: String(PORT), HOST: '127.0.0.1', JOIN_LIMIT: '1000', HR_ALLOWED_ORIGINS: 'https://freecode100year.github.io', CONFIG_FILE: '' }, stdio: ['ignore', 'pipe', 'pipe']
   });
   await new Promise((done, fail) => {
     const t = setTimeout(() => fail(new Error('server did not start')), 10000);

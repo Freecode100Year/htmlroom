@@ -17,7 +17,7 @@ npm ci
 npm start
 ```
 
-打开 <http://localhost:8080/>（会跳转到 `/hr.html`），创建房间并下载文件。相同文件或相同房间链接中的成员进入同一房间。房间文件可以离线生成，但实际聊天需要在线中继。
+打开 <http://localhost:8080/>（直接显示房间生成器），创建房间并下载文件。相同文件或相同房间链接中的成员进入同一房间。房间文件可以离线生成，但实际聊天需要在线中继。
 
 `dist/` 已包含构建资源；修改客户端后运行 `npm run build`。项目运行、测试、构建均不依赖原仓库。
 
@@ -34,10 +34,10 @@ iOS「文件」、微信和 QQ 的文件预览可能不执行 JavaScript。遇�
 ```sh
 mkdir -p out
 node scripts/build-html-room.mjs room \
-  --out out/room.html \
+  --out out/index.html \
   --relay wss://relay.example \
   --allow-relay wss://relay.example
-node scripts/verify-room-file.mjs out/room.html
+node scripts/verify-room-file.mjs out/index.html
 ```
 
 将示例地址替换为自己的中继。使用口令时，设置 `HR_PASSWORD_STDIN=1` 并通过标准输入提供口令；不要把口令放进命令行参数。浏览器生成器可直接随机生成高熵口令。
@@ -108,3 +108,12 @@ npx wrangler deploy --dry-run
 ## 许可证
 
 [MIT](LICENSE)。来源与第三方许可证随源码保留。
+
+## GitHub Pages 前端 + 独立中继
+
+前端：https://freecode100year.github.io/htmlroom/ ，默认聊天中继：`wss://chat.nya.je`。
+前端在浏览器内生成房间配置和 `index.html`，房间链接保留在 Pages；聊天密文通过独立中继转发。
+
+`npm run build:pages` 生成 `pages/`，支持项目子路径。可通过 `HR_PAGES_RELAY` 指定精确 WSS 源；普通 `npm run build` 仍默认使用页面同源中继。Pages 工作流在 main 更新时自动发布，不包含服务端代码或预生成的房间秘密。
+
+中继服务设置 `HR_ALLOWED_ORIGINS=https://freecode100year.github.io`，只允许指定 HTTPS 前端源，同时仍需有效房间凭证。Node 使用环境变量，Worker 使用同名变量；不要用通配符。GitHub Pages 的 Origin 是整个用户站点，不能按 `/htmlroom/` 路径隔离，同一账号下的其他 Pages 项目也共享该 Origin。

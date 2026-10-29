@@ -14,3 +14,8 @@ test('wrong values stop the server instead of falling back', () => {
     assert.throws(() => checkConfig(env), ConfigError, JSON.stringify(env));
   }
 });
+
+test('external frontend origins require exact HTTPS origins',()=>{
+ assert.deepEqual(checkConfig({HR_ALLOWED_ORIGINS:'https://freecode100year.github.io'}).allowedOrigins,['https://freecode100year.github.io']);
+ for(const value of ['*','null','http://example.com','https://example.com/path','https://example.com/'])assert.throws(()=>checkConfig({HR_ALLOWED_ORIGINS:value}),ConfigError);
+});

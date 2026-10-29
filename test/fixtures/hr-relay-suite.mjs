@@ -34,8 +34,9 @@ const room = async () => {const d=await derive(random(32));return {...d,access:h
 
 test('standalone HTTP entry serves only public room assets with security headers', async () => {
  const root=await fetch(SELF+'/',{redirect:'manual'});
- assert.equal(root.status,302);
- assert.equal(root.headers.get('location'),'/hr.html');
+ assert.equal(root.status,200);
+ assert.equal(root.headers.get('location'),null);
+ assert.match(await root.text(),/id="maker"/);
  const page=await fetch(SELF+'/hr.html');
  assert.equal(page.status,200);
  assert.match(page.headers.get('content-type'),/text\/html/);
@@ -62,6 +63,14 @@ test('/hr/ takes its own origin (the #hr1= web entry)', async () => {
   const c = connect(`/hr/${r.roomId}`, { origin: SELF, access: r.access });
   assert.equal((await c.frame('hello')).hr, 1);
   c.ws.close(4000);
+});
+
+test('/hr/ permits configured Pages origin with valid credentials only', async()=>{
+ const r=await room();const other=await room();
+ const c=connect(`/hr/${r.roomId}`,{origin:'https://freecode100year.github.io',access:r.access});
+ assert.equal((await c.frame('hello')).hr,1);c.ws.close(4000);
+ const bad=connect(`/hr/${r.roomId}`,{origin:'https://freecode100year.github.io',access:other.access});
+ await bad.until(()=>bad.closed);assert.equal(bad.status,403);
 });
 
 test('/hr/ refuses other origins and a missing one', async () => {

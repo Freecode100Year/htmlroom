@@ -6,7 +6,7 @@ import { configFromHash, fragmentFor, fillTemplate } from './transport.js';
 const fragment=location.hash;
 if(fragment)history.replaceState(null,'',location.pathname+location.search);
 const el=id=>document.getElementById(id);
-const ownRelay=location.origin.replace(/^http/,'ws');
+const ownRelay=PT_DEFAULT_RELAY || location.origin.replace(/^http/,'ws');
 let downloadUrl;
 function fail(text){el('mk-error').textContent=text;}
 function openFragment(fragment){
@@ -15,7 +15,7 @@ function openFragment(fragment){
  el('maker').hidden=true;el('room-panel').hidden=false;
  try{
   const config=configFromHash(fragment);
-  if(config.relay!==ownRelay)throw Error('网页入口仅允许本站中继，请用房间文件连接其他中继。');
+  if(config.relay!==ownRelay)throw Error('网页入口仅允许预设中继，请用房间文件连接其他中继。');
   boot(config);
  }catch{el('status').textContent='房间链接无效，或中继与本站不匹配。请重新索取链接或使用验证过的房间文件。';el('enter').disabled=true;}
 }

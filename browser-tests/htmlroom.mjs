@@ -15,9 +15,9 @@ try{
  browser=await chromium.launch({headless:true});const a=await browser.newContext(),b=await browser.newContext();
  const maker=await a.newPage(),file=await b.newPage();const errors=[],requests=[];
  for(const p of [maker,file]){p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error')errors.push(m.text());});p.on('request',r=>requests.push(r.url()));}
- await maker.goto(base+'/hr.html');await maker.locator('#mk-make').click();await maker.locator('#mk-out').waitFor({state:'visible'});
+ await maker.goto(base+'/');assert.equal(new URL(maker.url()).pathname,'/');await maker.locator('#mk-make').click();await maker.locator('#mk-out').waitFor({state:'visible'});
  const fragment=await maker.locator('#mk-link').inputValue();assert.ok(fragment.includes('#hr1='));
- const got=maker.waitForEvent('download');await maker.locator('#mk-download').click();const download=await got;const path=dir+'/room.html';await download.saveAs(path);
+ const got=maker.waitForEvent('download');await maker.locator('#mk-download').click();const download=await got;assert.equal(download.suggestedFilename(),'index.html');const path=dir+'/index.html';await download.saveAs(path);
  const html=await readFile(path,'utf8'),config=JSON.parse(html.match(/type="application\/json">(.*?)<\/script>/s)[1]);
  assert.equal(config.version,1);assert.equal(config.encrypted,false);assert.ok(config.master);
  await maker.goto(fragment);await maker.waitForFunction(()=>location.hash.length===0);assert.equal(new URL(maker.url()).hash.length,0);await maker.locator('#enter').click();

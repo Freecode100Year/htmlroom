@@ -28,7 +28,10 @@ export default {
     if (url.pathname === '/bye') return bye(request, url);
     const m = url.pathname.match(/^\/(hr)\/([0-9a-f]+)$/);
     if (!m) {
-      if(url.pathname==='/')return new Response(null,{status:302,headers:{...PLAIN_HEADERS,Location:'/hr.html'}});
+      if(url.pathname==='/'){
+        url.pathname='/hr.html';
+        return env.ASSETS.fetch(new Request(url,request));
+      }
       if(url.pathname==='/healthz')return Response.json({ok:true,version:'1.0.0'},{headers:PLAIN_HEADERS});
       if(!['/hr.html','/hr.js','/hr.css','/hr-template.html'].includes(url.pathname))return plain(404,'not found');
       return env.ASSETS.fetch(request);
@@ -37,7 +40,7 @@ export default {
     if (request.headers.get('Upgrade') !== 'websocket') return plain(426, 'websocket only');
     // Stops other web pages from connecting through a visitor's browser.
     // Programs outside a browser can send any Origin they like.
-    if (!htmlRoomOrigin(request.headers.get('Origin'), url.origin)) return plain(403, 'forbidden');
+    if (!htmlRoomOrigin(request.headers.get('Origin'), url.origin, (env.HR_ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean))) return plain(403, 'forbidden');
     // Only a page that knows the passphrase can show the access value.
     const proto = parseProtocols(request.headers.get('Sec-WebSocket-Protocol'));
     if (!proto.ok || !(await accessMatches(m[2], proto.access))) return plain(403, 'forbidden');

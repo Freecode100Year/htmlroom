@@ -13,7 +13,7 @@ let dev;
 if (on) {
   before(async () => {
     const bin = fileURLToPath(new URL('../node_modules/wrangler/bin/wrangler.js', import.meta.url));
-    dev = spawn(process.execPath, [bin, 'dev', '--port', String(PORT), '--ip', '127.0.0.1'], { cwd: ROOT, env: { ...process.env, WRANGLER_SEND_METRICS: 'false', CI: '1' }, stdio: ['ignore', 'pipe', 'pipe'], detached: process.platform !== 'win32' });
+    dev = spawn(process.execPath, [bin, 'dev', '--var', 'HR_ALLOWED_ORIGINS:https://freecode100year.github.io', '--port', String(PORT), '--ip', '127.0.0.1'], { cwd: ROOT, env: { ...process.env, WRANGLER_SEND_METRICS: 'false', CI: '1' }, stdio: ['ignore', 'pipe', 'pipe'], detached: process.platform !== 'win32' });
     await new Promise((done, fail) => {
       const t = setTimeout(() => fail(new Error('wrangler dev did not start in 45 s')), 45000);
       const look = (d) => { if (String(d).includes('Ready on')) { clearTimeout(t); setTimeout(done, 500); } };
