@@ -13,6 +13,9 @@ function fixture() {
   const bin = join(root, 'bin');
   mkdirSync(bin);
   const command = (name, body) => writeFileSync(join(bin, name), '#!/bin/sh\nset -eu\n' + body, { mode: 0o755 });
+  // Keep filesystem effects under the test runner's own UID, even on sudo-capable CI.
+  command('id', 'printf "0\\n"\n');
+  command('sudo', 'echo "unexpected privilege escalation in unit fixture" >&2; exit 78\n');
   // System/network boundaries only: all validation, state and generated files are real.
   command('docker', '[ "${FAIL_DOCKER:-0}" = 0 ] || exit 1\nexit 0\n');
   command('curl', 'case "$*" in *healthz*) printf \'%s\' "$HEALTH_BODY";; *) exit 8;; esac\n');
@@ -124,5 +127,33 @@ exec(sys.stdin.read())' "$@"\n`);
     assert.match(valid.stdout, /wss:\/\/relay\.example\.com/);
     assert.match(valid.stdout, /https:\/\/relay\.example\.com/);
     assert.doesNotMatch(readFileSync(join(f.destination, 'Caddyfile'), 'utf8'), /http:\/\//);
+  } finally { f.clean(); }
+});
+
+test('changing domain loads the new Caddy site before reporting it ready', { skip: linux }, () => {
+  const f = fixture();
+  try {
+    const active = join(f.root, 'active-caddy');
+    f.command('curl', `case "$*" in
+      *api6.ipify.org*) printf "2001:db8::1";;
+      *api.ipify.org*) printf "203.0.113.1";;
+      *healthz*) grep -Fq "$EXPECTED_DOMAIN {" "$ACTIVE_CADDY" || exit 22; printf '%s' "$HEALTH_BODY";;
+      *) exit 8;; esac\n`);
+    f.command('hostname', 'printf "203.0.113.1\\n"\n');
+    f.command('python3', `shift\nexec /usr/bin/python3 -c 'import socket,sys
+socket.getaddrinfo=lambda *args,**kwargs: [(0,0,0,"",("203.0.113.1",443))]
+exec(sys.stdin.read())' "$@"\n`);
+    // A running bind-mounted Caddyfile is not reloaded by ordinary Compose up.
+    f.command('docker', `case " $* " in
+      *' up '*)
+        case " $* " in *' --force-recreate '*) cp "$HR_INSTALL_DIR/Caddyfile" "$ACTIVE_CADDY";;
+          *) if [ ! -f "$ACTIVE_CADDY" ]; then cp "$HR_INSTALL_DIR/Caddyfile" "$ACTIVE_CADDY"; fi;; esac;;
+      esac\n`);
+    const env = { ACTIVE_CADDY: active, EXPECTED_DOMAIN: 'one.example.com' };
+    const first = f.run(['--domain', 'one.example.com'], env);
+    assert.equal(first.status, 0, first.stderr);
+    const changed = f.run(['--domain', 'two.example.com'], { ...env, EXPECTED_DOMAIN: 'two.example.com' });
+    assert.equal(changed.status, 0, changed.stderr);
+    assert.match(changed.stdout, /wss:\/\/two\.example\.com/);
   } finally { f.clean(); }
 });

@@ -174,7 +174,7 @@ if [ "$build" -eq 1 ]; then
   case "$source_dir" in *[!a-zA-Z0-9/_.-]*) fail '源码路径包含不安全字符' ;; esac
   if [ -z "${HR_SOURCE_DIR:-}" ] && [ ! -d "$source_dir" ]; then
     curl -fsSL --connect-timeout 10 --max-time 120 https://codeload.github.com/Freecode100Year/htmlroom/tar.gz/refs/heads/main -o "$work/source.tgz"
-    root mkdir "$source_dir"
+    root mkdir -m 0755 "$source_dir"
     root tar -xzf "$work/source.tgz" --strip-components=1 -C "$source_dir"
   fi
   if ! { [ -f "$source_dir/Dockerfile" ] && [ -f "$source_dir/dist/hr.js" ]; }; then
@@ -209,6 +209,10 @@ volumes:
   caddy_data:
   caddy_config:
 EOF_COMPOSE
+caddy_changed=0
+if [ -f "$destination/Caddyfile" ] && ! cmp -s "$work/Caddyfile" "$destination/Caddyfile"; then
+  caddy_changed=1
+fi
 root install -m 0644 "$work/Caddyfile" "$destination/Caddyfile"
 root install -m 0644 "$work/compose.yaml" "$destination/compose.yaml"
 compose config --quiet
@@ -218,6 +222,10 @@ else
   compose pull htmlroom || fail '无法拉取 GHCR 镜像；首次发布前或 GHCR 不可达时请使用 --build 从源码构建'
 fi
 compose up -d --wait --wait-timeout 90
+# Bind-mounted file contents do not affect Compose's service hash; admin API is off.
+if [ "$caddy_changed" -eq 1 ]; then
+  compose up -d --no-deps --force-recreate --wait --wait-timeout 90 caddy
+fi
 if [ "$development" -eq 1 ]; then
   web=http://localhost:$port; websocket=ws://localhost:$port
 else

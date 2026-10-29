@@ -1,6 +1,6 @@
 FROM docker:29-cli AS docker
 FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl shellcheck sudo \
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl shellcheck sudo python3 \
     && rm -rf /var/lib/apt/lists/* \
     && chmod 0755 /root \
     && useradd -m installer \
