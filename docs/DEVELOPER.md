@@ -173,11 +173,17 @@ docker compose up -d --build
 
 ### Cloudflare Workers
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2FFreecode100Year%2Fhtmlroom)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Freecode100Year/htmlroom)
 
 按钮会从公开仓库创建项目，读取 `package.json` 的 `build` / `deploy` 脚本，并按 Wrangler 配置创建 Durable Objects。前端与中继同源，默认不需设置 `HR_ALLOWED_ORIGINS`。参见 [Cloudflare 部署按钮文档](https://developers.cloudflare.com/workers/platform/deploy-buttons/)。
 
-官方按钮资源支持列表列出了 Durable Objects，未明确列出 Rate Limiting。实测按钮正确跳转到 Cloudflare 控制台，但当前浏览器测试环境遇到验证页（HTTP 403），未完成登录账户后的端到端部署。如果按钮报告不支持 `JOIN_LIMIT`，在创建的仓库中删除 `wrangler.jsonc` 的 `ratelimits` 项后重试，或使用下方 CLI 部署。Worker 已使用 `if (env.JOIN_LIMIT)` 检查绑定是否存在；移除后会跳过该层加入速率限制。不要移除 `ROOMS` 或 Durable Objects 迁移。
+官方按钮资源支持列表列出了 Durable Objects，未明确列出 Rate Limiting。实测按钮正确跳转到 Cloudflare 控制台，但当前浏览器测试环境遇到验证页（HTTP 403），未完成登录账户后的端到端部署。如果按钮报告不支持 `JOIN_LIMIT`，在创建的仓库中删除 `wrangler.jsonc` 的 `ratelimits` 项后重试，或使用下方 CLI 部署。Worker 已使用 `if (env.JOIN_LIMIT)` 检查绑定是否存在；移除后会跳过该层加入速率限制，并在每个 Worker isolate 第一次合法加入时仅记录一次固定警告，不记录 IP、房间号或凭证；房间人数、访问校验和帧大小限制继续生效，但抗批量加入能力降低。不要移除 `ROOMS` 或 Durable Objects 迁移。
+
+`durable_objects.bindings` 的 `ROOMS` 对应导出的 `Room` 类，`migrations` 中 `v1/new_sqlite_classes` 用于首次创建 SQLite Durable Object；参见[官方入门](https://developers.cloudflare.com/durable-objects/get-started/)与[迁移文档](https://developers.cloudflare.com/durable-objects/reference/durable-objects-migrations/)。官方目前也提供新的 `exports` 声明方式，并明确旧 `migrations` 仍受支持；这里保留现有迁移，避免更改部署生命周期。`ratelimits` 的 `name/namespace_id/simple` 格式来自[官方 Rate Limiting API](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/)，Wrangler dry-run 接受这些配置不等于按钮已通过线上授权部署。
+
+部署完成后到 Cloudflare 控制台 **Workers & Pages → 自己的 Worker → Visit / 访问**，复制显示的 `workers.dev` HTTPS 地址。`/` 提供前端，`/hr/<roomId>` 提供同源中继；无需配置 `HR_ALLOWED_ORIGINS`。自定义域名与 ECH 的开启及验证见 [ECH 说明](ECH.md)。
+
+全新克隆需要 Node.js 22+，先运行 `npm ci`，再 `npm run build` 和 `npm run deploy`。构建只依赖仓库文件及锁定依赖，不依赖本地 `.wrangler`、房间文件或私有配置；实际发布需要 Cloudflare 登录或构建环境提供凭证。仅检查打包可执行 `npm run deploy -- --dry-run`。
 
 命令行部署：
 
