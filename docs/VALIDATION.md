@@ -5,7 +5,7 @@
 
 ## 本地结果
 
-- `npm test`：34 项，26 通过，8 项 Worker 探针按设计跳过，失败 0。
+- `npm test`：35 项，27 通过，8 项 Worker 探针按设计跳过，失败 0。
 - `npm run test:worker`：真实本地 workerd 8/8 通过，无跳过。
 - `npm run test:browser`：文件聊天 11 项、网页/文件互通 9 项通过；禁用脚本、CSP 拦截、同房间恢复与正常启动回归通过。
 - `npm run build:check`：通过；固定房间脚本与来源提交哈希相同。
@@ -17,6 +17,8 @@
 补充验证曾发现 Worker 默认 HTML 路径规范化导致 `/hr.html` 跳转后 404，现通过 `assets.html_handling: "none"` 固定字面路径；相关静态入口回归现已通过。依据：[Cloudflare HTML handling](https://developers.cloudflare.com/workers/static-assets/routing/advanced/html-handling/)。
 
 Docker 本地构建曾继承源文件的严格权限，使非 root 用户无法读取服务文件；现使用 `COPY --chown=node:node`，只读容器全套探针通过。
+
+首次远端 CI 的 Windows 静态入口检查发现原响应头解析不接受 CRLF 换行，导致安全头缺失；现拆出解析函数并增加 LF/CRLF 回归，修正为同时接受两种换行。最终远端结果以 Actions 中最新提交为准。
 
 ## 未验证
 

@@ -30,6 +30,7 @@ import {
 
 import { loadConfigFile, checkConfig, ConfigError } from './config.mjs';
 import { VERSION } from './version.mjs';
+import { parseHeaders } from './headers.mjs';
 
 let config;
 try {
@@ -67,13 +68,8 @@ const TYPES = {
 
 // The security headers come from dist/_headers, the same file Cloudflare uses.
 async function loadHeaders() {
-  const out = {};
   const text = await readFile(join(ROOT, '_headers'), 'utf8');
-  for (const line of text.split('\n')) {
-    const m = line.match(/^\s+([A-Za-z-]+):\s*(.+)$/);
-    if (m) out[m[1]] = m[2].trim();
-  }
-  return out;
+  return parseHeaders(text);
 }
 const HEADERS = await loadHeaders();
 
