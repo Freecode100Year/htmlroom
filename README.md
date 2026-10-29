@@ -19,6 +19,35 @@
 - 🔒 **上锁的信**：你们发的每句话都会先“锁”起来再送出去。负责传话的服务器只能看到一堆乱码，看不到内容。
 - 💨 **说完就散**：本项目不会持久保存聊天记录。关掉网页，这个页面里的聊天内容就没了；对方仍可复制或截图。
 
+### 一张图看懂
+
+整个项目就是一个 `index.html`：怎么打开它，它就扮演什么角色。
+
+```mermaid
+flowchart TD
+    F["index.html（一个文件）<br/>同时是网页和服务器"]
+    F --> A["空白文件 · 浏览器<br/>创建器（可离线）"]
+    F --> B["房间文件 · 浏览器<br/>加密聊天室"]
+    F --> C["node index.html<br/>中继服务器"]
+    A --> G["生成房间文件<br/>新钥匙，可设口令"]
+    G -- 发给朋友 --> B
+    B -. "↻ 每个房间文件也能再生新房间" .-> G
+    B <--> R["中继（只转发密文）<br/>wss:// 经典 · bc+ / nostr+ / mqtt+ 去中心化"]
+    C --> R
+
+    classDef file fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A
+    classDef browser fill:#EEEDFE,stroke:#534AB7,color:#26215C
+    classDef relay fill:#E1F5EE,stroke:#0F6E56,color:#04342C
+    class F file
+    class A,B,G browser
+    class C,R relay
+```
+
+- **浏览器打开空白文件**：创建器，断网也能生成房间文件。
+- **浏览器打开房间文件**：加密聊天室；房间文件里也带着创建器，可以继续生成新房间。
+- **`node index.html`**：中继服务器；空白文件运行时还会提供创建页面，房间文件运行时不公开自己。
+- 聊天要经过中继，中继只看得到密文。
+
 ## 三步开始聊天
 
 **第 1 步：创建房间**
