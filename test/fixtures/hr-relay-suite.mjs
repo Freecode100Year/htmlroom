@@ -145,4 +145,25 @@ test('/hr/ reconnect with the resume token replaces the old connection', async (
   again.ws.close(4000);
 });
 
+// Decentralized rooms: /bc/<topic> forwards text to the rest of the topic.
+test('/bc/ forwards text frames to the other members of the topic only', async () => {
+  const topic = hex(random(16)), open = (t = topic, origin = 'null') => new Promise((done, fail) => {
+    const ws = new WebSocket(`${BASE}/bc/${t}`, { origin });
+    ws.on('open', () => done(ws)); ws.on('unexpected-response', (_, res) => { res.resume(); fail(Object.assign(new Error('http'), { status: res.statusCode })); }); ws.on('error', () => {});
+  });
+  const [a, b, c] = [await open(), await open(), await open()], d = await open(hex(random(16)));
+  const got = [], wrong = [];
+  b.on('message', (m) => got.push(String(m))); c.on('message', (m) => got.push(String(m)));
+  a.on('message', (m) => wrong.push(String(m))); d.on('message', (m) => wrong.push(String(m)));
+  a.send('sealed-frame');
+  for (let i = 0; i < 40 && got.length < 2; i++) await new Promise((r) => setTimeout(r, 50));
+  assert.deepEqual(got, ['sealed-frame', 'sealed-frame']);
+  await new Promise((r) => setTimeout(r, 150));
+  assert.deepEqual(wrong, []);
+  const closed = new Promise((r) => b.on('close', r)); b.send('x'.repeat(16001));
+  await closed;
+  await assert.rejects(open(topic, 'https://evil.example'), (e) => e.status === 403);
+  for (const ws of [a, c, d]) ws.close();
+});
+
 }

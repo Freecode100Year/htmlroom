@@ -2,14 +2,14 @@
 // Node; a room file uses the same function to re-emit itself with another
 // relay list, so a re-targeted file is byte-identical to a fresh build and
 // passes scripts/verify-room-file.mjs.
-import { validate, relayList } from './crypto.js';
+import { validate, relayList, versionFor, cspSource, relayKind, relayUrl } from './crypto.js';
 import { escapeConfig, previewHelp } from './transport.js';
 
 export const cspFor = (config, scriptHash, styleHash) =>
- `default-src 'none'; script-src 'sha256-${scriptHash}'; style-src 'sha256-${styleHash}'; connect-src ${config.version?config.relays.join(' '):"'none'"}; base-uri 'none'; form-action 'none'`;
+ `default-src 'none'; script-src 'sha256-${scriptHash}'; style-src 'sha256-${styleHash}'; connect-src ${config.version?config.relays.map(cspSource).join(' '):"'none'"}; base-uri 'none'; form-action 'none'`;
 
 // Hidden until file.js enables it, so the copy embedded in the web entry stays inert.
-const RETARGET = `<details id="retarget" hidden><summary>更换中继（例如改用自建 wss:// 中继）</summary><p>生成一份只改中继地址的新房间文件：房间密钥、口令和房间号都不变，生成时无需口令。所有成员须改用同一份新文件，连到不同中继的成员互相看不到消息；切换后请重新核对安全码。新中继的运营者能看到房间号和入房凭证，但无法解密消息。</p><label for="rt-relay">新中继源（按优先级 1–3 个，空格或逗号分隔；保留旧中继即作备用）</label><input id="rt-relay" maxlength="650" autocomplete="off" spellcheck="false"><button id="rt-make" type="button">生成新房间文件</button><p id="rt-status" role="status"></p><a id="rt-download" download="index.html" hidden>下载新房间文件</a></details>`;
+const RETARGET = `<details id="retarget" hidden><summary>更换中继（自建中继、Nostr、MQTT）</summary><p>生成一份只改中继地址的新房间文件：房间密钥、口令和房间号都不变，生成时无需口令。所有成员须改用同一份新文件，连到不同中继的成员互相看不到消息；切换后请重新核对安全码。新中继的运营者能看到房间号和入房凭证，但无法解密消息。</p><label for="rt-relay">新中继源（空格或逗号分隔）：经典 wss:// 1–3 个按优先级切换；去中心化 bc+wss:// 、nostr+wss:// 、mqtt+wss://…/mqtt 1–5 个同时使用</label><input id="rt-relay" maxlength="1200" autocomplete="off" spellcheck="false"><button id="rt-make" type="button">生成新房间文件</button><p id="rt-status" role="status"></p><a id="rt-download" download="index.html" hidden>下载新房间文件</a></details>`;
 
 export function roomHtml(config, script, style, scriptHash, styleHash) {
  const csp = cspFor(config, scriptHash, styleHash);
@@ -22,7 +22,10 @@ export function roomHtml(config, script, style, scriptHash, styleHash) {
 // password-wrap AAD, so no password is needed and nothing secret changes.
 export function withRelays(config, input) {
  validate(config);
- return validate({ ...config, relays: relayList(input) });
+ // Moving between classic (v2) and decentralized (v3) relays only changes the
+ // version tag: the key material and roomId stay the same.
+ const relays = relayList(input);
+ return validate({ ...config, version: versionFor(relays), relays });
 }
 
 const digest = async s => btoa(String.fromCharCode(...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))));

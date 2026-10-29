@@ -11,7 +11,7 @@
     "build:pages": "node scripts/build-html-room.mjs pages",
     "build:check": "node scripts/build-html-room.mjs template --check",
     "test": "node --test",
-    "test:browser": "node browser-tests/htmlroom.mjs && node browser-tests/html-room-preview.mjs && node browser-tests/multi-relay.mjs && node browser-tests/retarget.mjs",
+    "test:browser": "node browser-tests/htmlroom.mjs && node browser-tests/html-room-preview.mjs && node browser-tests/multi-relay.mjs && node browser-tests/retarget.mjs && node browser-tests/mesh.mjs",
     "test:retarget": "node browser-tests/retarget.mjs",
     "test:failover": "node browser-tests/multi-relay.mjs",
     "test:pages": "npm run build:pages && node browser-tests/pages.mjs",
@@ -19,12 +19,17 @@
     "test:worker": "HR_WORKER_TEST=1 node --test test/hr-worker.test.mjs",
     "html-room:generate": "node scripts/build-html-room.mjs",
     "html-room:check": "node scripts/check-html-room.mjs",
-    "deploy": "npm run build:check && wrangler deploy"
+    "deploy": "npm run build:check && wrangler deploy",
+    "test:mesh": "node browser-tests/mesh.mjs",
+    "relay:go": "cd relay/go && go run . "
   },
   "dependencies": {
+    "@noble/curves": "1.9.7",
+    "@noble/hashes": "1.8.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "aedes": "1.2.0",
     "esbuild": "0.28.2",
     "playwright": "1.64.1",
     "wrangler": "^4.149.0"

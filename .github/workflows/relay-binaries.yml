@@ -1,0 +1,40 @@
+name: Relay binaries
+# Builds the dependency-free Go broadcast relay for every common platform and
+# attaches it to the release, so scripts/relay-quickstart.sh can fetch it.
+on:
+  push:
+    tags: ['*']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+      - name: Vet and build
+        working-directory: relay/go
+        run: |
+          go vet ./...
+          mkdir -p ../../out
+          for t in linux/amd64 linux/arm64 linux/arm linux/386 linux/mips linux/mipsle linux/riscv64 \
+                   windows/amd64 windows/arm64 darwin/amd64 darwin/arm64 freebsd/amd64 android/arm64; do
+            os=${t%/*}; arch=${t#*/}; ext=; [ "$os" = windows ] && ext=.exe
+            GOOS=$os GOARCH=$arch GOMIPS=softfloat GOARM=7 CGO_ENABLED=0 \
+              go build -trimpath -ldflags='-s -w' -o ../../out/htmlroom-relay-$os-$arch$ext .
+          done
+          cd ../../out && sha256sum htmlroom-relay-* > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: htmlroom-relay
+          path: out/*
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes "HTML Room $GITHUB_REF_NAME"
+          gh release upload "$GITHUB_REF_NAME" out/* --clobber

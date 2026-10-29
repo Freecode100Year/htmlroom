@@ -242,3 +242,18 @@ export function inside(pathname, entry) {
 // What an address outside the entry gets: the reply of a bare Go web server,
 // with none of this site's headers.
 export const COVER = { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'X-Content-Type-Options': 'nosniff' }, body: '404 page not found\n' };
+
+// Plain broadcast for decentralized (version 3) rooms: /bc/<topic>. Frames are
+// sealed with a key the relay never sees and members number themselves, so
+// the relay only forwards bounded text frames to the other connections on the
+// same topic. Any server doing just that is compatible (see relay/go).
+export const BC_TOPIC = /^[0-9a-f]{32}$/;
+export const BC_MAX_FRAME = 16000;
+export const BC_MAX_PEERS = 50;
+export const BC_RATE_PER_10S = 60;
+// state { window, count } is updated in place; true means close the connection.
+export function broadcastFrameBad(raw, state, now = Date.now()) {
+  const window = Math.floor(now / 10000);
+  if (state.window !== window) { state.window = window; state.count = 0; }
+  return typeof raw !== 'string' || raw.length > BC_MAX_FRAME || ++state.count > BC_RATE_PER_10S;
+}

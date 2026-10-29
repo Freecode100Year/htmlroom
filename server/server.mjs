@@ -24,8 +24,8 @@ import { join, extname, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import {
-  MAX_MEMBERS, ROOM_ID, PONG, CLOSE_BUSY, CLOSE_CAPACITY, CLOSE_LEFT, CLOSE_DENIED, PLAIN_HEADERS, BYE_HEADERS, JOINS_PER_MINUTE,
-  PROTOCOL, WIRE_VERSION, COVER, inside, emptyBook, admit, depart, awayNumbers, token, hostOf, parseProtocols, accessMatches
+  MAX_MEMBERS, ROOM_ID, PONG, CLOSE_BUSY, CLOSE_CAPACITY, CLOSE_FULL, CLOSE_LEFT, CLOSE_DENIED, PLAIN_HEADERS, BYE_HEADERS, JOINS_PER_MINUTE,
+  PROTOCOL, WIRE_VERSION, COVER, inside, BC_TOPIC, BC_MAX_FRAME, BC_MAX_PEERS, broadcastFrameBad, emptyBook, admit, depart, awayNumbers, token, hostOf, parseProtocols, accessMatches
 } from '../src/rules.js';
 
 import { loadConfigFile, checkConfig, ConfigError } from './config.mjs';
@@ -196,8 +196,29 @@ const wss = new WebSocketServer({
   handleProtocols: (protocols) => (protocols.has(PROTOCOL) ? PROTOCOL : false)
 });
 
+// Decentralized rooms: forward text frames to the rest of the topic, nothing more.
+const bcs = new WebSocketServer({ noServer: true, maxPayload: BC_MAX_FRAME });
+const topics = new Map();
+function enterBroadcast(ws, topic, ip) {
+  if (wss.clients.size + bcs.clients.size > MAX_CONNECTIONS) return ws.close(CLOSE_CAPACITY, 'capacity');
+  if (!allowJoin(ip)) return ws.close(CLOSE_BUSY, 'busy');
+  const peers = topics.get(topic) ?? new Set();
+  if (peers.size >= BC_MAX_PEERS) return ws.close(CLOSE_FULL, 'full');
+  topics.set(topic, peers); peers.add(ws);
+  ws.alive = true; ws.state = { window: 0, count: 0 };
+  ws.on('pong', () => { ws.alive = true; });
+  ws.on('message', (data, isBinary) => {
+    ws.alive = true;
+    const raw = isBinary ? null : data.toString();
+    if (broadcastFrameBad(raw, ws.state)) return ws.close(1008, 'bad frame');
+    for (const peer of peers) if (peer !== ws && peer.readyState === 1) peer.send(raw);
+  });
+  ws.on('close', () => { peers.delete(ws); if (!peers.size) topics.delete(topic); });
+  ws.on('error', () => ws.terminate());
+}
+
 function enter(ws, roomId, ip, resume) {
-  if (wss.clients.size > MAX_CONNECTIONS) return ws.close(CLOSE_CAPACITY, 'capacity');
+  if (wss.clients.size + bcs.clients.size > MAX_CONNECTIONS) return ws.close(CLOSE_CAPACITY, 'capacity');
   if (!allowJoin(ip)) return ws.close(CLOSE_BUSY, 'busy');
   const room = rooms.get(roomId) ?? { peers: new Set(), book: emptyBook() };
   const inUse = new Map([...room.peers].map((p) => [p.state.n, p.state.resume]));
@@ -256,6 +277,11 @@ server.on('upgrade', (req, socket, head) => {
     const headers = Object.entries(COVER.headers).map(([k, v]) => `${k}: ${v}\r\n`).join('');
     return socket.end(`HTTP/1.1 404 Not Found\r\n${headers}Content-Length: ${COVER.body.length}\r\nConnection: close\r\n\r\n${COVER.body}`);
   }
+  const b = typeof path === 'string' && path.match(/^\/bc\/([0-9a-f]+)$/);
+  if (b && BC_TOPIC.test(b[1])) {
+    if (!htmlRoomOrigin(req.headers.origin, originOf(req), config.allowedOrigins)) return reject('403 Forbidden');
+    return bcs.handleUpgrade(req, socket, head, (ws) => enterBroadcast(ws, b[1], clientIP(req)));
+  }
   if (!m || !ROOM_ID.test(m[2])) return reject('404 Not Found');
   // Stops other web pages from connecting through a visitor's browser.
   // Programs outside a browser can send any Origin they like.
@@ -273,7 +299,7 @@ server.on('upgrade', (req, socket, head) => {
 
 // Drop connections that stopped answering (phones that lost the network).
 setInterval(() => {
-  for (const ws of wss.clients) {
+  for (const ws of [...wss.clients, ...bcs.clients]) {
     if (!ws.alive) { ws.terminate(); continue; }
     ws.alive = false;
     ws.ping();
@@ -293,9 +319,9 @@ for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => {
   if (stopping) process.exit(0);
   stopping = true;
   server.close();
-  for (const ws of wss.clients) ws.close(1012, 'restart');
+  for (const ws of [...wss.clients, ...bcs.clients]) ws.close(1012, 'restart');
   const deadline = Date.now() + 3000;
   const check = setInterval(() => {
-    if (!wss.clients.size || Date.now() > deadline) { clearInterval(check); process.exit(0); }
+    if (!(wss.clients.size + bcs.clients.size) || Date.now() > deadline) { clearInterval(check); process.exit(0); }
   }, 100);
 });

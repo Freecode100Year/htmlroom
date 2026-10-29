@@ -20,7 +20,7 @@ function enableRetarget(config){
    url=URL.createObjectURL(new Blob([r.html],{type:'text/html'}));
    el('rt-download').href=url;el('rt-download').hidden=false;
    say(`已生成：新文件按顺序连接 ${r.config.relays.join('、')}。房间密钥和口令不变；请把新文件发给所有成员，用新文件重新打开并核对安全码。`);
-  }catch(e){say(/[一-鿿]/.test(e?.message??'')?`生成失败：${e.message}。`:'生成失败：请填写 1–3 个 wss:// 中继源（只含域名或 IP，可带端口，不含路径）。');}
+  }catch(e){say(/[一-鿿]/.test(e?.message??'')?`生成失败：${e.message}。`:'生成失败：请检查中继地址格式（如 wss://relay.example.com 或 nostr+wss://relay.example.com）。');}
   finally{el('rt-make').disabled=false;}
  });
  addEventListener('pagehide',()=>{if(url)URL.revokeObjectURL(url);});

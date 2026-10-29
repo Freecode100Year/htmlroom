@@ -1,7 +1,7 @@
 // Adapted from Claude's hr.js maker/Fragment entry; cryptography and chat
 // use the canonical protocol modules shared with standalone files.
 import { boot } from './client.js';
-import { makeConfig, relayList, hex, random } from './crypto.js';
+import { makeConfig, relayList, relayKind, relayUrl, hex, random } from './crypto.js';
 import { configFromHash, fragmentFor, fillTemplate } from './transport.js';
 import { withRelays, configFromRoomHtml } from './template.js';
 const fragment=location.hash;
@@ -9,6 +9,9 @@ if(fragment)history.replaceState(null,'',location.pathname+location.search);
 const el=id=>document.getElementById(id);
 const allowedRelays=PT_DEFAULT_RELAYS.length ? PT_DEFAULT_RELAYS : [location.origin.replace(/^http/,'ws')];
 let downloadUrl,convertUrl;
+// A room opens from this site's link only if this page may reach all its
+// relays: preset classic relays, or bc paths on those same servers.
+const linkable=relays=>relays.every(r=>allowedRelays.includes(r)||(relayKind(r)==='bc'&&allowedRelays.includes(new URL(relayUrl(r)).origin)));
 async function filledTemplate(config){
  const response=await fetch('hr-template.html',{credentials:'omit',cache:'no-store',referrerPolicy:'no-referrer'});
  if(!response.ok)throw Error('模板不可用');
@@ -21,7 +24,7 @@ function openFragment(fragment){
  el('maker').hidden=true;el('room-panel').hidden=false;
  try{
   const config=configFromHash(fragment);
-  if(!config.relays.every(relay=>allowedRelays.includes(relay)))throw Error('网页入口仅允许预设中继，请用房间文件连接其他中继。');
+  if(!linkable(config.relays))throw Error('网页入口仅允许预设中继，请用房间文件连接其他中继。');
   boot(config);
  }catch{el('status').textContent='房间链接无效，或中继与本站不匹配。请重新索取链接或使用验证过的房间文件。';el('enter').disabled=true;}
 }
@@ -30,6 +33,7 @@ if(fragment)openFragment(fragment);
 else{
  el('mk-relay').value=allowedRelays.join(', ');
  el('mk-gen').addEventListener('click',()=>{el('mk-pass').value=hex(random(32));});
+ el('mk-mesh').addEventListener('click',()=>{el('mk-relay').value=allowedRelays.map(r=>`bc+${r}/bc/`).join(' ');fail('已填入本站的去中心化中继（bc+）。可继续添加 nostr+wss://… 或 mqtt+wss://… 作为同时在线的备份中继。');});
  el('maker').addEventListener('submit',async event=>{
   event.preventDefault();el('mk-make').disabled=true;fail('');el('mk-out').hidden=true;
   try{
@@ -42,10 +46,10 @@ else{
    downloadUrl=URL.createObjectURL(new Blob([html],{type:'text/html'}));
    el('mk-download').href=downloadUrl;el('mk-out').hidden=false;
    el('mk-pass').value='';
-   if(relays.every(relay=>allowedRelays.includes(relay))){el('mk-link').value=location.origin+location.pathname+fragmentFor(config);el('mk-link-row').hidden=false;}
+   if(linkable(relays)){el('mk-link').value=location.origin+location.pathname+fragmentFor(config);el('mk-link-row').hidden=false;}
    else{el('mk-link').value='';el('mk-link-row').hidden=true;}
    fail(password?'文件已包装。请通过独立渠道传递口令；仍须防范离线猜测。':'此文件包含完整房间密钥，请勿通过未加密的社交软件直接发送。');
-  }catch{fail('生成失败。请检查中继地址、环境和模板完整性。');}
+  }catch(e){fail(/[\u4e00-\u9fff]/.test(e?.message??'')?`生成失败：${e.message}`:'生成失败。请检查中继地址、环境和模板完整性。');}
   finally{el('mk-make').disabled=false;}
  });
  // Existing room file -> same room on other relays. Read locally, never uploaded;

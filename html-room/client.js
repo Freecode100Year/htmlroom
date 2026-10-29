@@ -1,6 +1,7 @@
 import { unlock, validate, hex } from './crypto.js';
 import { Session } from './session.js';
 import { RelayConnection } from './relay-connection.js';
+import { MeshConnection } from './mesh.js';
 export function boot(config) {
 const el=id=>document.getElementById(id), status=text=>{el('status').textContent=text;};
 el('preview-help').hidden=true;
@@ -10,7 +11,7 @@ const rows=new Map();
 function emit(kind,value){
  if(kind==='notice'||kind==='fatal')status(value);
  if(kind==='relay-change'){el('safety').textContent='中继已切换，正在重新验证成员；请重新核对安全码。';}
- if(kind==='presence')el('presence').textContent=`在线 ${value} 人（中继报告）`;
+ if(kind==='presence')el('presence').textContent=`在线 ${value} 人（${config.version===3?'成员心跳估计':'中继报告'}）`;
  if(kind==='ready'){status('已建立签名混合加密连接');el('safety').textContent=`安全码：${value}，请通过独立渠道核对。`;}
  if(kind==='message'){const li=document.createElement('li');li.textContent=`${value.from}：${value.text}`;const small=document.createElement('small');li.append(small);el('messages').append(li);rows.set(value.id,small);if(rows.size>200){rows.delete(rows.keys().next().value);el('messages').firstChild.remove();}}
  if(kind==='delivery' && rows.has(value.id))rows.get(value.id).textContent=value.text;
@@ -21,6 +22,19 @@ else if(config.version){
 }else{status('无秘密模板：请使用生成器创建房间文件。');el('enter').disabled=true;}
 el('unlock').addEventListener('submit',async e=>{e.preventDefault();if(busy||Date.now()<nextUnlock)return;busy=true;el('enter').disabled=true;try{
  const derived=await unlock(config,el('password').value);el('password').value='';session=new Session(derived,config,{emit});el('unlock').hidden=true;el('chat').hidden=false;
+ if(config.version===3){
+  const connection=new MeshConnection(config.relays,{
+   derived:session.d,
+   onhello:n=>session.run(()=>{session.ws=connection.socket;status('已加入去中心化房间，正在验证成员密钥…');return session.incoming({type:'hello',you:n,resume:''});}),
+   onmembers:list=>session.run(()=>session.incoming({type:'members',members:list})),
+   onframe:(frame,from)=>session.run(()=>session.incoming({...frame,from})),
+   onstatus:text=>{el('relay-status').textContent=text;},
+   onnotice:status,
+   onfatal:text=>{session.halt();status(text||'会话结束，请重新打开房间文件。');}
+  });
+  session.connection=connection;connection.start();
+  status('正在连接去中心化中继并确认成员编号…');
+ }else{
  const connection=new RelayConnection(config.relays,{
   roomId:config.roomId,
   protocols:index=>['pt2',`a${hex(session.d.access)}`,...(session.resume && connection.lastIndex===index?[`r${session.resume}`]:[])],
@@ -36,6 +50,7 @@ el('unlock').addEventListener('submit',async e=>{e.preventDefault();if(busy||Dat
   onfatal:()=>{session.halt();status('连接被拒绝或会话结束，请检查房间文件、中继配置或人数限制后重新打开。');}
  });
  session.connection=connection;connection.start();
+ }
  session.tick=setInterval(()=>session.run(async()=>{
   if(session.ws?.readyState===1){
    if(Date.now()-(session.lastAnnounce??0)>10000){await session.announce(true);session.lastAnnounce=Date.now();}

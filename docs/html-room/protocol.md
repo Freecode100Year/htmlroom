@@ -33,3 +33,17 @@ Canonical 配置为 `{version:2,relays:[...],roomId,encrypted,...}`。relays 有
 `#hr1=` 仍为 UTF-8 canonical JSON 的无 padding base64url，最大编码 8192 字符、解码 4096 字节；拒绝坏编码、未知字段和旧配置。读取后清除地址栏。网页默认只允许 ownRelay；静态部署可用 HR_PAGES_RELAYS 构建固定白名单，链接中的所有 relays 必须属于该白名单。生成器可以为任意经过校验的精确中继组合生成离线文件，但只有白名单覆盖全部 relays 时提供本站房间链接。
 
 静态预览恢复链接指向首选中继的 /hr.html，并保留完整配置；目标网页若未预设完整中继白名单将拒绝入房，应改用直接打开的验证过的房间文件。没有引入第三方脚本或持久化存储。普通消息和 seen 回执继续使用 Group 签名链。
+
+## V3 去中心化中继
+
+配置与 V2 相同，只是 `version: 3`，`relays` 为 1–5 个带前缀的地址（`bc+`、`nostr+`、`mqtt+`，规范化规则见 crypto.js `relayEntry`），不能与无前缀的经典中继混用。master、口令包装、roomId 与 V2 完全相同，V2 与 V3 之间只改 relays 和 version 即可互转。文件 CSP connect-src 列出每个中继的精确源（bc 为以 `/` 结尾的路径前缀，其他为源或单个精确路径）。
+
+派生：HKDF-SHA-256（同一 master、全零 salt），info `private-talk/html-room/v3/mesh` 得到 32 字节帧密钥，info `private-talk/html-room/v3/topic` 的输出取前 32 个小写十六进制字符作为 topic。V1 的 access/key/bind 派生不变。
+
+帧：`base64(iv12 ‖ AES-256-GCM(meshKey, iv, AAD = UTF-8 "private-talk/html-room/v3/mesh|<topic>", JSON))`，最大 16000 字符。JSON 字段：`d` 本次会话随机 8 字节节点号（十六进制）、`n` 成员编号 0–25（0 = 尚未编号）、`t` 发送时间（毫秒，接收方拒绝 ±10 分钟以外）、`c` 编号认领时间（编号后才有）、`k` 为 `hb`（心跳）/`f`（载荷）/`bye`（离开）。`f` 载荷是 V2 中 Session 发往中继的原样帧（`key`/`msg`/`seen`）；接收方以本机接收时间作为 `at`，以 `n` 作为 `from`。同一 IV 只处理一次（最多记住 4096 个）。每个帧发往全部已连接的中继。
+
+成员协商：连上第一个中继后先发 `n=0` 心跳；其他成员见到新节点后 50–300 ms 内回一次心跳。3–4 秒后认领未被在线成员占用的最小编号（满 25 人则拒绝）。每 4 秒心跳，14 秒无帧视为离开，`bye` 立即离开。同一编号被多个节点认领时，`c` 最早者拥有（相同则节点号小者），其余节点立即重新认领；只接受编号拥有者的载荷。编号换了拥有者时先上报「离开」再上报「加入」，Session 遗忘旧签名身份（V3 中离开即清除该编号的签名绑定），再按 V2 规则重新验证。在线名单由成员心跳推算，不由中继报告。自身发出的 `msg` 在至少一个中继接受后本地标记为「已提交中继」。
+
+传输：bc 连接 `<路径><topic>`，收发文本帧。Nostr 发送 `["EVENT", ev]`，ev 为 kind 20111、tags `[["t", topic]]`、content 为帧、使用本次会话一次性密钥的 BIP-340 签名；订阅 `["REQ", sub, {kinds:[20111], "#t":[topic], since: now-30}]`；`OK false`、`AUTH`、`CLOSED` 会提示一次。MQTT 3.1.1：CONNECT（clean session、keepalive 60、随机 client id）、SUBSCRIBE `htmlroom/<topic>` QoS 0、PUBLISH QoS 0、每 30 秒 PINGREQ。各传输独立以 1–30 秒指数退避重连。
+
+安全差异见 [安全模型](security-model.md#去中心化中继v3)。

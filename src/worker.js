@@ -2,7 +2,8 @@ import { htmlRoomOrigin, checkHtmlRoomFrame } from './html-room.js';
 import { DurableObject } from 'cloudflare:workers';
 import {
   MAX_MEMBERS, ROOM_ID, PING, PONG, CLOSE_BUSY, CLOSE_LEFT, PLAIN_HEADERS, BYE_HEADERS, PROTOCOL, WIRE_VERSION,
-  emptyBook, admit, depart, awayNumbers, token, hostOf, parseProtocols, accessMatches
+  emptyBook, admit, depart, awayNumbers, token, hostOf, parseProtocols, accessMatches,
+  BC_TOPIC, BC_MAX_PEERS, CLOSE_FULL, broadcastFrameBad
 } from './rules.js';
 const plain = (status, body = null, headers = PLAIN_HEADERS) => new Response(body, { status, headers });
 // The page asks for the pt2 subprotocol; a 101 answer must name it or the
@@ -27,6 +28,14 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === '/bye') return bye(request, url);
+    const b = url.pathname.match(/^\/bc\/([0-9a-f]+)$/);
+    if (b) {
+      if (!BC_TOPIC.test(b[1])) return plain(400, 'bad topic');
+      if (request.headers.get('Upgrade') !== 'websocket') return plain(426, 'websocket only');
+      if (!htmlRoomOrigin(request.headers.get('Origin'), url.origin, (env.HR_ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean))) return plain(403, 'forbidden');
+      if (env.JOIN_LIMIT && !(await env.JOIN_LIMIT.limit({ key: request.headers.get('CF-Connecting-IP') || 'unknown' })).success) return plain(429, 'busy');
+      return env.ROOMS.get(env.ROOMS.idFromName(`bc:${b[1]}`)).fetch(request);
+    }
     const m = url.pathname.match(/^\/(hr)\/([0-9a-f]+)$/);
     if (!m) {
       if(url.pathname==='/'){
@@ -82,6 +91,7 @@ export class Room extends DurableObject {
   }
 
   async fetch(request) {
+    if (new URL(request.url).pathname.startsWith('/bc/')) return this.joinBroadcast();
     const { resume } = parseProtocols(request.headers.get('Sec-WebSocket-Protocol'));
     const peers = this.peers();
     const inUse = new Map(peers.map((ws) => { const a = ws.deserializeAttachment(); return [a.n, a.resume]; }));
@@ -111,8 +121,24 @@ export class Room extends DurableObject {
     return hostOf(peers.map((ws) => { const a = ws.deserializeAttachment(); return [a.n, a.seq]; }));
   }
 
+  // Decentralized rooms (/bc/): forward text frames, nothing more.
+  joinBroadcast() {
+    const [client, server] = Object.values(new WebSocketPair());
+    if (this.ctx.getWebSockets().length >= BC_MAX_PEERS) { server.accept(); server.close(CLOSE_FULL, 'full'); return new Response(null, { status: 101, webSocket: client, headers: PLAIN_HEADERS }); }
+    this.ctx.acceptWebSocket(server);
+    server.serializeAttachment({ bc: true, window: 0, count: 0 });
+    return new Response(null, { status: 101, webSocket: client, headers: PLAIN_HEADERS });
+  }
+
   async webSocketMessage(ws, raw) {
     const a = ws.deserializeAttachment();
+    if (a?.bc) {
+      const bad = broadcastFrameBad(raw, a);
+      ws.serializeAttachment(a);
+      if (bad) return ws.close(1008, 'bad frame');
+      for (const peer of this.ctx.getWebSockets()) if (peer !== ws) { try { peer.send(raw); } catch {} }
+      return;
+    }
     if (!a || a.done) return;
     const r = checkHtmlRoomFrame(raw, a);
     ws.serializeAttachment(a);
@@ -130,6 +156,7 @@ export class Room extends DurableObject {
 
   gone(ws, code) {
     const a = ws.deserializeAttachment();
+    if (a?.bc) { try { ws.close(); } catch {} return; }
     if (a && !a.done) {
       a.done = true;
       ws.serializeAttachment(a);

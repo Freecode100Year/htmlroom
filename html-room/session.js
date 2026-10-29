@@ -30,7 +30,7 @@ export class Session {
     if(m.type==='members') {
       if(!Array.isArray(m.members) || m.members.some(n=>!Number.isInteger(n)||n<1||n>25))return;
       const left=this.present.filter(n=>!m.members.includes(n));
-      for(const n of left){this.group.forget(n);for(const key of this.received.keys())if(key.startsWith(`${n}|`))this.received.delete(key);}
+      for(const n of left){this.group.forget(n);if(this.config.version===3)this.pins.delete(n);for(const key of this.received.keys())if(key.startsWith(`${n}|`))this.received.delete(key);}
       this.present=m.members;
       if(left.length)await this.group.rekey();
       await this.announce(true);this.emit('presence',this.present.length);await this.update();return;

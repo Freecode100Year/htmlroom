@@ -12,22 +12,60 @@ export async function derive(master) {
   const hkdf = await crypto.subtle.importKey('raw', raw, 'HKDF', false, ['deriveBits']);
   const part = async name => new Uint8Array(await crypto.subtle.deriveBits({ name:'HKDF', hash:'SHA-256', salt:new Uint8Array(32), info:enc.encode(`private-talk/html-room/v1/${name}`) }, hkdf, 256));
   const access = await part('access'), keyBytes = await part('key'), bind = await part('bind');
-  return { access, keyBytes, bind, roomId:hex(await crypto.subtle.digest('SHA-256', access)), key:await crypto.subtle.importKey('raw', keyBytes, 'AES-GCM', false, ['encrypt','decrypt']) };
+  // Version 3 (decentralized) only: a frame key that admits nothing without the
+  // master, and a topic name for dumb relays that is unlinkable to roomId.
+  const v3 = async name => new Uint8Array(await crypto.subtle.deriveBits({ name:'HKDF', hash:'SHA-256', salt:new Uint8Array(32), info:enc.encode(`private-talk/html-room/v3/${name}`) }, hkdf, 256));
+  const meshBytes = await v3('mesh'), topic = hex(await v3('topic')).slice(0, 32);
+  const meshKey = await crypto.subtle.importKey('raw', meshBytes, 'AES-GCM', false, ['encrypt','decrypt']); meshBytes.fill(0);
+  return { access, keyBytes, bind, topic, meshKey, roomId:hex(await crypto.subtle.digest('SHA-256', access)), key:await crypto.subtle.importKey('raw', keyBytes, 'AES-GCM', false, ['encrypt','decrypt']) };
 }
+const HOST = /^(?:[a-z0-9.-]+|\[[0-9a-f:]+\])$/, LOOPBACK = ['localhost','127.0.0.1','[::1]'];
+function checkUrl(u) {
+  if (!HOST.test(u.hostname)) throw Error('中继主机名含不安全字符');
+  if (u.username || u.password || u.search || u.hash || !['ws:','wss:'].includes(u.protocol)) throw Error('中继必须是 WS/WSS 地址，不含账号、查询参数或 #');
+  if (u.protocol === 'ws:' && !LOOPBACK.includes(u.hostname)) throw Error('远程中继必须使用 WSS');
+}
+// Classic relay (this project's /hr/ protocol, version 2 rooms): an exact origin.
 export function relayOrigin(s) {
   const u = new URL(s);
-  if (!/^(?:[a-z0-9.-]+|\[[0-9a-f:]+\])$/.test(u.hostname)) throw Error('中继主机名含不安全字符');
-  if (u.username || u.password || u.search || u.hash || u.pathname !== '/' || !['ws:','wss:'].includes(u.protocol)) throw Error('中继必须是精确的 WS/WSS 源');
-  if (u.protocol === 'ws:' && !['localhost','127.0.0.1','[::1]'].includes(u.hostname)) throw Error('远程中继必须使用 WSS');
+  checkUrl(u);
+  if (u.pathname !== '/') throw Error('中继必须是精确的 WS/WSS 源');
   return u.origin;
 }
-const KDF = { name:'PBKDF2', hash:'SHA-256', iterations:310000 };
+// Decentralized relays (version 3 rooms) carry a kind prefix:
+//   bc+wss://host/path/   any WebSocket server that forwards each text frame to
+//                          the other connections on the same path (default /bc/)
+//   nostr+wss://host      a Nostr relay (ephemeral events, NIP-01)
+//   mqtt+wss://host/mqtt  an MQTT 3.1.1 broker over WebSocket
+export const MESH_KINDS = ['bc','nostr','mqtt'];
+const KIND = /^(bc|nostr|mqtt)\+/i, PATH = /^(?:\/[A-Za-z0-9._~-]+)*\/?$/;
+export const relayKind = entry => KIND.exec(entry)?.[1].toLowerCase() ?? 'hr';
+export const relayUrl = entry => entry.replace(KIND, '');
+// The CSP source that admits exactly this relay: a bc path ends with "/" and so
+// matches only paths under it; the rest are an origin or one exact path.
+export const cspSource = relayUrl;
+export function relayEntry(s) {
+  if (typeof s !== 'string') throw Error('中继地址无效');
+  const kind = relayKind(s.trim());
+  if (kind === 'hr') return relayOrigin(s.trim());
+  const u = new URL(relayUrl(s.trim()));
+  checkUrl(u);
+  let path = u.pathname;
+  if (!PATH.test(path) || path.includes('//')) throw Error('中继路径含不安全字符');
+  if (kind === 'bc') { if (path === '/') path = '/bc/'; if (!path.endsWith('/')) throw Error('bc 中继路径须以 / 结尾'); }
+  else if (path === '/') path = '';
+  return `${kind}+${u.origin}${path}`;
+}
 export function relayList(input) {
   const values = Array.isArray(input) ? input : typeof input === 'string' ? input.trim().split(/[\s,]+/) : [];
-  const relays = [...new Set(values.map(relayOrigin))];
-  if (!relays.length || relays.length > 3) throw Error('请提供 1 到 3 个不同中继');
+  const relays = [...new Set(values.map(relayEntry))];
+  const mesh = relays.some(r => relayKind(r) !== 'hr');
+  if (mesh && relays.some(r => relayKind(r) === 'hr')) throw Error('经典中继（wss://）不能与去中心化中继（bc+ / nostr+ / mqtt+）混用');
+  if (!relays.length || relays.length > (mesh ? 5 : 3)) throw Error(mesh ? '请提供 1 到 5 个不同的去中心化中继' : '请提供 1 到 3 个不同中继');
   return relays;
 }
+export const versionFor = relays => relays.some(r => relayKind(r) !== 'hr') ? 3 : 2;
+const KDF = { name:'PBKDF2', hash:'SHA-256', iterations:310000 };
 const aad = roomId => enc.encode(`private-talk/html-room/v1/wrap|${roomId}`);
 async function passwordKey(pass, salt) {
   if (typeof pass !== 'string' || !pass.length || enc.encode(pass).length > 1024) throw Error('口令长度无效');
@@ -35,8 +73,9 @@ async function passwordKey(pass, salt) {
   return crypto.subtle.deriveKey({...KDF,salt}, base, {name:'AES-GCM',length:256}, false, ['encrypt','decrypt']);
 }
 export function validate(c) {
-  if (!c || c.version !== 2 || !/^[0-9a-f]{64}$/.test(c.roomId)) throw Error('房间版本或地址错误');
+  if (!c || ![2,3].includes(c.version) || !/^[0-9a-f]{64}$/.test(c.roomId)) throw Error('房间版本或地址错误');
   if (!Array.isArray(c.relays) || JSON.stringify(relayList(c.relays)) !== JSON.stringify(c.relays)) throw Error('中继列表格式错误');
+  if (versionFor(c.relays) !== c.version) throw Error('房间版本与中继类型不符');
   const common=['version','relays','roomId','encrypted'];
   if (c.encrypted === true) {
     const allowed=[...common,'salt','iv','ciphertext','kdf'];
@@ -50,7 +89,7 @@ export function validate(c) {
 }
 export async function makeConfig(relay, pass) {
   const relays=relayList(relay);
-  const master=random(32), d=await derive(master), c={version:2,relays,roomId:d.roomId,encrypted:!!pass};
+  const master=random(32), d=await derive(master), c={version:versionFor(relays),relays,roomId:d.roomId,encrypted:!!pass};
   if (!pass) return {...c,master:hex(master)};
   const salt=random(16), iv=random(12), key=await passwordKey(pass,salt);
   const ciphertext=await crypto.subtle.encrypt({name:'AES-GCM',iv,additionalData:aad(c.roomId)},key,master);

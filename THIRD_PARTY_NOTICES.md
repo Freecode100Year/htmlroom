@@ -9,6 +9,8 @@ Copyright (c) 2026 Freecode100Year. MIT License; see LICENSE and docs/PROVENANCE
 
 lib/vendor/mlkem.js bundles ML-KEM-768 from @noble/post-quantum 0.7.1 and supporting @noble/hashes and @noble/curves code. The original source comments and license notices are retained.
 
+html-room/mesh.js bundles BIP-340 Schnorr signing over secp256k1 from @noble/curves 1.9.7 and SHA-256 from @noble/hashes 1.8.0 (npm, exact versions in package-lock.json), used only to sign Nostr events with a per-session throwaway key.
+
 Copyright (c) 2024 Paul Miller (https://paulmillr.com).
 Copyright (c) 2022 Paul Miller (paulmillr.com).
 

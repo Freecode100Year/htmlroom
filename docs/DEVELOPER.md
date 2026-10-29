@@ -220,11 +220,51 @@ HR_PAGES_RELAYS='wss://primary.example.com,wss://backup.example.com' npm run bui
 
 Vercel 配置同名构建变量并重新部署。旧 `HR_PAGES_RELAY` 仍接受单项，`HR_PAGES_RELAYS` 优先。网页只接纳 `relays` 全部属于构建白名单的链接，每个中继都须放行该前端的精确 HTTPS Origin。文件静态恢复链接指向首选中继的 `/hr.html`，其网页也须支持该完整列表，否则应在支持脚本的浏览器中直接打开文件。不要把房间主密钥放到查询参数中。
 
+## 去中心化房间（version 3）
+
+中继列表中出现带前缀的地址时，房间使用 `version: 3`。经典中继与去中心化中继不能混用；去中心化中继 1–5 个，全部同时连接：
+
+| 前缀 | 连接地址 | 兼容条件 |
+| --- | --- | --- |
+| `bc+wss://host/path/` | `wss://host/path/<topic>`（路径缺省为 `/bc/`） | 把收到的文本帧转发给同一路径的其他连接；帧最大约 12 KB；不需要回显给发送者 |
+| `nostr+wss://host` | 原地址 | NIP-01；发布临时事件 kind `20111`，标签 `["t", topic]`，订阅 `{kinds:[20111], "#t":[topic]}`；每次会话使用一次性 secp256k1 密钥签名；需接受临时事件、不要求 NIP-42 登录或 NIP-13 工作量证明 |
+| `mqtt+wss://host/mqtt` | 原地址，WebSocket 子协议 `mqtt` | MQTT 3.1.1，QoS 0，clean session，主题 `htmlroom/<topic>`，允许匿名 |
+
+`topic` 由主密钥派生（HKDF `private-talk/html-room/v3/topic` 的前 32 个十六进制字符），与 roomId 无法互相推出。每个帧都是 AES-256-GCM 密文（密钥来自 HKDF `private-talk/html-room/v3/mesh`，AAD 绑定 topic），中继和没有房间文件的人既读不懂也伪造不了；解不开的帧被直接丢弃。帧按 IV 去重，所以同一条消息经多个中继到达只处理一次。
+
+本项目的 Node/Docker 服务器和 Cloudflare Worker 都提供 `/bc/<32 位十六进制>`：只转发文本帧，帧大小 16000 字节、每连接每 10 秒 60 帧、每个 topic 50 个连接上限，Origin 规则与 `/hr/` 相同（文件的 `null`、同源、`HR_ALLOWED_ORIGINS`）。生成器的「改用去中心化中继」按钮会填入本站的 `bc+` 地址；只有全部中继都是本站 bc 路径时才提供网页链接，其他组合请使用房间文件。
+
+成员协商规则见 [协议说明](html-room/protocol.md#v3-去中心化中继)。
+
+### 单文件中继（Go）
+
+`relay/go` 是一个只用 Go 标准库实现的 bc 中继，交叉编译后单个文件约 6 MB，可在 Windows、macOS、Linux、FreeBSD、Android（Termux）以及 OpenWrt 路由器（mips/mipsle/arm）上运行，没有运行时依赖。推送 tag 时 **Relay binaries** 工作流会把各平台文件和 `SHA256SUMS` 附加到 Release。
+
+```sh
+htmlroom-relay                                  # 监听 :8080，前面放 HTTPS 反向代理
+htmlroom-relay -tls-cert cert.pem -tls-key key.pem -listen :443
+htmlroom-relay -tunnel                          # 用 cloudflared 临时隧道得到公网 wss:// 地址
+htmlroom-relay -allow-origin https://chat.example.com   # 只允许指定网页（文件打开的 null 始终允许）
+```
+
+其他参数：`-max-conns`、`-max-peers`、`-max-frame`、`-rate`。中继不写磁盘、不记录 topic 或 IP。没有 Go 时可用 `scripts/relay-quickstart.sh` 下载预编译文件（强制校验 SHA-256），`--tunnel` 会在缺少 cloudflared 时一并下载官方版本；`--from-source` 用本机 Go 编译。也可以 `docker build -t htmlroom-relay relay/go`。
+
+自己写兼容中继只需满足上表 bc 行：例如 `websocat -t ws-l:127.0.0.1:8080 broadcast:mirror:` 也能工作（它会把帧回显给发送者，客户端会忽略自己的帧）。
+
+### 测试
+
+```sh
+node --test test/mesh.test.mjs test/mesh-relays.test.mjs   # 成员协商、帧封装、Nostr/MQTT 编码、真实中继互通
+npm run test:mesh                                            # 浏览器：4 个中继、3 名成员、逐个断开中继
+```
+
+`test/fixtures/mesh-relays.mjs` 启动本项目 Node 中继、Go 中继、校验签名的 Nostr 中继和 aedes MQTT 代理；有 Go 工具链时才运行 Go 相关用例。
+
 ## 更换中继（迁移到自建中继）
 
 `relays` 只是公开路由配置：roomId 由主密钥派生，口令包装的 AAD 只绑定 roomId，二者都不含中继地址。因此同一房间可以搬到任何兼容中继（本项目的 Node/Docker 或 Cloudflare 中继），新中继无需任何房间预配置——文件以 `Origin: null` 连接，中继默认放行。
 
-三种方式，结果逐字节相同，都能通过 `verify-room-file.mjs`：
+经典中继和去中心化中继之间也可以互相转换（version 2 ↔ 3），密钥材料和 roomId 不变。三种方式，结果逐字节相同，都能通过 `verify-room-file.mjs`：
 
 - **房间文件内**：打开 `index.html`，展开「更换中继」，填写新中继（如 `wss://relay.example.com`，可在后面保留旧中继作备用），点击「生成新房间文件」并下载。无需口令。
 - **网页生成器**：在「已有房间文件？改用其他中继」中选择旧文件并填写新中继。文件只在浏览器内读取；会用本站模板重建，所以没有该按钮的旧文件也能转换（旧 `version: 1` 文件除外）。
