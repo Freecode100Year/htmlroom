@@ -1,0 +1,9 @@
+.git
+node_modules
+.wrangler
+.env*
+config.env
+out
+*.pem
+*.key
+*.log

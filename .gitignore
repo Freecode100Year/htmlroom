@@ -1,0 +1,12 @@
+node_modules/
+.wrangler/
+.env
+.env.*
+!.env.example
+config.env
+lan-certs/
+out/
+*.pem
+*.key
+*.log
+.DS_Store
