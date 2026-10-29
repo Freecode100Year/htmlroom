@@ -7,6 +7,7 @@ import {
 const plain = (status, body = null, headers = PLAIN_HEADERS) => new Response(body, { status, headers });
 // The page asks for the pt2 subprotocol; a 101 answer must name it or the
 // browser drops the connection without telling the page why.
+let warnedMissingJoinLimit = false;
 const WS_HEADERS = { ...PLAIN_HEADERS, 'Sec-WebSocket-Protocol': PROTOCOL };
 
 function refuse(code, reason) {
@@ -49,6 +50,9 @@ export default {
     if (env.JOIN_LIMIT) {
       const { success } = await env.JOIN_LIMIT.limit({ key: request.headers.get('CF-Connecting-IP') || 'unknown' });
       if (!success) return refuse(CLOSE_BUSY, 'too many joins');
+    } else if (!warnedMissingJoinLimit) {
+      warnedMissingJoinLimit = true;
+      console.warn('JOIN_LIMIT binding missing; join rate limiting disabled for this Worker isolate.');
     }
     return env.ROOMS.get(env.ROOMS.idFromName(`hr:${m[2]}`)).fetch(request);
   }

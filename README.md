@@ -76,11 +76,11 @@
 
 ### Cloudflare：前端和中继一起部署（推荐）
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2FFreecode100Year%2Fhtmlroom)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Freecode100Year/htmlroom)
 
 登录 Cloudflare，按页面提示创建仓库并部署。前端和 Durable Objects 中继在同一个 Worker 上，部署后打开分配的 `workers.dev` 地址即可创建房间，无需另配 Origin。
 
-仓库须公开。实测按钮可跳转至 Cloudflare 控制台，但当前测试环境被其验证页拦截（403），账户授权及 `JOIN_LIMIT` 绑定兼容性尚未完成线上验证；如果页面不支持该绑定，请在创建的仓库中移除 `wrangler.jsonc` 的 `ratelimits` 项后重新部署。代码已支持缺少该绑定时跳过加入限流，房间人数和消息大小限制仍生效。详见 [Cloudflare 部署说明](docs/DEVELOPER.md#cloudflare-workers)。
+仓库须公开。实测按钮可跳转至 Cloudflare 控制台，但当前测试环境被其验证页拦截（403），账户授权及 `JOIN_LIMIT` 绑定兼容性尚未完成线上验证；如果页面不支持该绑定，请在创建的仓库中移除 `wrangler.jsonc` 的 `ratelimits` 项后重新部署。代码已支持缺少该绑定时每个 Worker 实例仅记录一次不含请求信息的警告并跳过加入限流，房间人数和消息大小限制仍生效。详见 [Cloudflare 部署说明](docs/DEVELOPER.md#cloudflare-workers)。
 
 ### Linux 服务器：一条命令安装
 
@@ -107,6 +107,10 @@ curl -fsSL https://raw.githubusercontent.com/Freecode100Year/htmlroom/main/insta
 本地验证：38 项项目测试通过（默认跳过的 9 项 Worker 探针另行运行，全部通过），静态前端、网页/文件互通及双中继故障切换浏览器测试、构建检查和 Worker 打包检查通过。Docker 镜像构建与 Compose/Caddy 配置也已在部署功能加入时通过检查。这些检查不代表已完成公网服务器安装或云端部署；Cloudflare 按钮的登录后绑定兼容性仍待验证。
 
 ## 给开发者
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Freecode100Year/htmlroom)
+
+按钮将前端和中继部署到同一个 Worker。完成后在 Cloudflare 控制台的 **Workers & Pages** 中打开自己的项目，点击 **Visit / 访问** 或复制 `https://项目名.账户子域.workers.dev` 地址；打开这个网址即可创建房间，无需设置 `HR_ALLOWED_ORIGINS`。部署步骤见[开发文档](docs/DEVELOPER.md#cloudflare-workers)，域名隐私与验证方法见 [ECH 说明](docs/ECH.md)。
 
 想在自己电脑上运行、搭建自己的服务器，或者了解技术细节？请看：
 
