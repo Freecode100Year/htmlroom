@@ -106,5 +106,12 @@ export class Session {
       if(!own.echo && (own.retries??0)>=3)this.emit('delivery',{id:own.id,text:'中继提交未确认，请核实后重发'});
     }
   }
-  halt(){this.stopped=true;clearTimeout(this.retry);clearInterval(this.tick);this.ws?.close(4000);}
+  resetRelay() {
+    for (const own of this.own.values()) if (own.confirmed.size < own.targets.length || !own.echo)
+      this.emit('delivery', { id: own.id, text: '已切换中继，送达状态未知，请核实后重发' });
+    this.group=null;this.resume=null;this.present=[];this.pins.clear();this.seen.clear();
+    this.own.clear();this.received.clear();this.receipts=[];this.nextSend=0;this.lastAnnounce=0;
+    this.emit('presence',0);this.emit('relay-change');
+  }
+  halt(){this.stopped=true;clearTimeout(this.retry);clearInterval(this.tick);this.connection?.stop();this.ws?.close(4000);}
 }

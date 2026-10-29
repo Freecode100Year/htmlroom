@@ -7,7 +7,7 @@ export async function verifyRoomFile(html){
   const manifest=JSON.parse(await readFile(new URL('../docs/html-room/release-integrity.json',import.meta.url),'utf8'));
   const info=await checkHtml(html,manifest.scriptHashBase64);
   const config=JSON.parse(html.match(/type="application\/json">(.*?)<\/script>/s)[1]);
-  return {ok:true,problems:[],relay:config.relay,locked:config.encrypted,info};
+  return {ok:true,problems:[],relays:config.relays,locked:config.encrypted,info};
  }catch{return {ok:false,problems:['文件与发布模板不符，或配置/哈希/CSP 无效。']};}
 }
 if(process.argv[1]===fileURLToPath(import.meta.url)){

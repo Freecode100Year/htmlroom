@@ -13,9 +13,9 @@ const dir = await mkdtemp(tmpdir() + '/pt-hr-preview-');
 const browser = await chromium.launch({ headless: true });
 try {
  const config = await makeConfig('wss://relay.example', 'preview-test-password');
- const rendered = await render(config, [config.relay]);
+ const rendered = await render(config, config.relays);
  const template = await render({}, []);
- const filled = await fillTemplate(template.html, config, [config.relay], template.scriptHash,
+ const filled = await fillTemplate(template.html, config, config.relays, template.scriptHash,
   template.styleHash, createHash('sha256').update(template.html).digest('base64'));
  assert.equal(filled, rendered.html, 'browser and CLI generators must provide identical recovery');
  const path = dir + '/room.html';

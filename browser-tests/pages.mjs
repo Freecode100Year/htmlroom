@@ -28,7 +28,7 @@ try {
   const download=await event;assert.equal(download.suggestedFilename(),'index.html');
   const html=await readFile(await download.path(),'utf8');
   const config=JSON.parse(html.match(/type="application\/json">(.*?)<\/script>/s)[1]);
-  assert.equal(config.relay,'wss://chat.nya.je');
+  assert.deepEqual(config.relays,['wss://chat.nya.je']);
   assert.ok(html.includes('connect-src wss://chat.nya.je'));
   await page.goto(link);await page.waitForFunction(()=>location.hash==='');
   await page.locator('#enter').waitFor({state:'visible'});

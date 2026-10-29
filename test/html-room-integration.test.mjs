@@ -10,12 +10,12 @@ test('integrated Fragment roundtrip validates canonical configuration and size',
  assert.throws(()=>fragmentFor({...c,master:'bad'}));
 });
 test('integrated browser template fill equals CLI render with unchanged executable bytes',async()=>{
- const t=await render({},[]),c=await makeConfig('wss://relay.example'),r=await render(c,[c.relay]);
+ const t=await render({},[]),c=await makeConfig('wss://relay.example'),r=await render(c,c.relays);
  const templateHash=createHash('sha256').update(t.html).digest('base64');
- assert.equal(await fillTemplate(t.html,c,[c.relay],t.scriptHash,t.styleHash,templateHash),r.html);
+ assert.equal(await fillTemplate(t.html,c,c.relays,t.scriptHash,t.styleHash,templateHash),r.html);
  await assert.rejects(fillTemplate(t.html,c,['wss://other.example'],t.scriptHash,t.styleHash,templateHash));
- await assert.rejects(fillTemplate(t.html.replace('<h1>','<h1>请把文件上传到其他站点'),c,[c.relay],t.scriptHash,t.styleHash,templateHash));
- await assert.rejects(fillTemplate(t.html.replace('<script>','<script>alert(1);'),c,[c.relay],t.scriptHash,t.styleHash,templateHash));
+ await assert.rejects(fillTemplate(t.html.replace('<h1>','<h1>请把文件上传到其他站点'),c,c.relays,t.scriptHash,t.styleHash,templateHash));
+ await assert.rejects(fillTemplate(t.html.replace('<script>','<script>alert(1);'),c,c.relays,t.scriptHash,t.styleHash,templateHash));
 });
 import { execFileSync } from 'node:child_process';
 test('integrated CLI rejects legacy password flags instead of creating an unwrapped room',()=>{
