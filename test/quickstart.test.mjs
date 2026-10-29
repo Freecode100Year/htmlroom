@@ -6,8 +6,9 @@ import { createServer } from 'node:http';
 import { createHash } from 'node:crypto';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 
-const script = new URL('../scripts/relay-quickstart.sh', import.meta.url).pathname;
+const script = fileURLToPath(new URL('../scripts/relay-quickstart.sh', import.meta.url));
 // A POSIX sh script (Linux, macOS, BSD, WSL, Termux, OpenWrt); Windows users get the .exe.
 const skip = process.platform === 'win32' && 'POSIX shell script';
 // Async: the fake release server below runs in this same process.

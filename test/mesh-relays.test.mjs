@@ -47,9 +47,10 @@ test('Go relay forwards the same way, with optional origin allowlist', { skip: !
   (await open(`${strict.url}/bc/${TOPIC}`, { origin: 'null' })).close();
 });
 
-test('Go relay -tunnel prints the relay line from cloudflared output', { skip: !goAvailable() && 'go not installed' }, async (t) => {
+test('Go relay -tunnel prints the relay line from cloudflared output', { skip: (!goAvailable() && 'go not installed') || (process.platform === 'win32' && 'POSIX fake cloudflared') }, async (t) => {
   const { writeFileSync, chmodSync, mkdtempSync } = await import('node:fs');
-  const dir = mkdtempSync('/tmp/hr-cf-'), fake = dir + '/cloudflared';
+  const { tmpdir } = await import('node:os');
+  const dir = mkdtempSync(tmpdir() + '/hr-cf-'), fake = dir + '/cloudflared';
   writeFileSync(fake, '#!/bin/sh\necho "INF |  https://quiet-river-1234.trycloudflare.com  |" >&2\nsleep 30\n'); chmodSync(fake, 0o755);
   const relay = await goRelay(['-tunnel', '-cloudflared', fake]); t.after(relay.stop);
   for (let i = 0; i < 50 && !relay.output().includes('bc+wss://'); i++) await wait(100);

@@ -2,13 +2,16 @@
 import { spawn, execFileSync } from 'node:child_process';
 import { createServer } from 'node:http';
 import { existsSync, mkdtempSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { WebSocketServer, createWebSocketStream } from 'ws';
 import { schnorr } from '@noble/curves/secp256k1';
 import { sha256 } from '@noble/hashes/sha256';
 import { Aedes } from 'aedes';
 
-const root = new URL('../../', import.meta.url).pathname;
+// fileURLToPath, not .pathname: on Windows that would be /D:/... and nothing starts.
+const root = fileURLToPath(new URL('../../', import.meta.url));
 const hex = u8 => Buffer.from(u8).toString('hex');
 async function healthy(url) {
   for (let i = 0; i < 80; i++) { try { if ((await fetch(url)).ok) return; } catch {} await new Promise(r => setTimeout(r, 100)); }
@@ -19,7 +22,7 @@ const listen = server => new Promise(r => server.listen(0, '127.0.0.1', () => r(
 // This project's Node server (classic /hr/ and broadcast /bc/).
 export async function nodeRelay(env = {}) {
   const port = 20000 + Math.floor(Math.random() * 20000);
-  const child = spawn(process.execPath, [root + 'server/server.mjs'], { env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', ...env }, stdio: 'ignore' });
+  const child = spawn(process.execPath, [join(root, 'server', 'server.mjs')], { env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', ...env }, stdio: 'ignore' });
   await healthy(`http://127.0.0.1:${port}/healthz`);
   return { port, url: `ws://127.0.0.1:${port}`, stop: () => new Promise(r => { if (child.exitCode !== null || child.signalCode) return r(); child.once('exit', r); child.kill('SIGTERM'); }) };
 }
@@ -28,8 +31,8 @@ let goBinary;
 export function goAvailable() { try { execFileSync('go', ['version'], { stdio: 'ignore' }); return true; } catch { return false; } }
 export async function goRelay(args = []) {
   if (!goBinary) {
-    goBinary = mkdtempSync(tmpdir() + '/hr-go-') + '/htmlroom-relay' + (process.platform === 'win32' ? '.exe' : '');
-    execFileSync('go', ['build', '-o', goBinary, '.'], { cwd: root + 'relay/go', stdio: 'ignore', env: { ...process.env, CGO_ENABLED: '0' } });
+    goBinary = join(mkdtempSync(join(tmpdir(), 'hr-go-')), 'htmlroom-relay' + (process.platform === 'win32' ? '.exe' : ''));
+    execFileSync('go', ['build', '-o', goBinary, '.'], { cwd: join(root, 'relay', 'go'), stdio: 'ignore', env: { ...process.env, CGO_ENABLED: '0' } });
   }
   const port = 20000 + Math.floor(Math.random() * 20000);
   const child = spawn(goBinary, ['-listen', `127.0.0.1:${port}`, ...args], { stdio: ['ignore', 'pipe', 'pipe'] });
