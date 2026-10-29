@@ -85,14 +85,15 @@ function node(d, createSocket, claimDelay, relays = ['bc+wss://relay.example/bc/
 
 test('members number themselves, settle clashes and hear each other', async (t) => {
   const d = await derive(random(32)), sock = bus();
+  const started = []; t.after(() => started.forEach(x => x.m.stop()));
   const a = node(d, sock, 0), b = node(d, sock, 0); // both claim 1 at once
-  t.after(() => { a.m.stop(); b.m.stop(); c.m.stop(); });
+  started.push(a, b);
   await wait(3000);
   const nums = [a.m.me, b.m.me].sort();
   assert.deepEqual(nums, [1, 2], 'a clash is settled');
   assert.deepEqual([a.seen.hello, b.seen.hello].map(h => h.length), [1, 1], 'keys are made once, after the number settled');
   assert.deepEqual([...a.seen.hello, ...b.seen.hello].sort(), [1, 2]);
-  const c = node(d, sock, 200);
+  const c = node(d, sock, 200); started.push(c);
   await wait(2500);
   assert.equal(c.m.me, 3);
   assert.deepEqual([a.m.me, b.m.me].sort(), [1, 2], 'established members keep their numbers');
@@ -107,12 +108,13 @@ test('members number themselves, settle clashes and hear each other', async (t) 
 
 test('a late joiner that claims a taken number gives it up, whatever its node id', async (t) => {
   const d = await derive(random(32)), sock = bus();
-  const a = node(d, sock, 0); t.after(() => { a.m.stop(); late.m.stop(); });
+  const stops = []; t.after(() => stops.forEach(f => f()));
+  const a = node(d, sock, 0); stops.push(() => a.m.stop());
   await wait(300);
   // Joins deaf: claims at once, before hearing anyone, and with the lowest possible node id.
   const late = { seen: { hello: [], members: [], frames: [] } };
   late.m = new MeshConnection(['bc+wss://relay.example/bc/'], { derived: d, createSocket: sock, claimDelay: 0, onhello: n => late.seen.hello.push(n), onmembers: () => {}, onframe: () => {} });
-  late.m.node = '0000000000000000'; late.m.start();
+  late.m.node = '0000000000000000'; late.m.start(); stops.push(() => late.m.stop());
   await wait(6000);
   assert.equal(a.m.me, 1); assert.deepEqual(a.seen.hello, [1]);
   assert.equal(late.m.me, 2); assert.deepEqual(late.seen.hello, [2], 'gave up 1 before making keys for it');

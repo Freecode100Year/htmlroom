@@ -160,7 +160,7 @@ test('/bc/ forwards text frames to the other members of the topic only', async (
   assert.deepEqual(got, ['sealed-frame', 'sealed-frame']);
   await new Promise((r) => setTimeout(r, 150));
   assert.deepEqual(wrong, []);
-  const closed = new Promise((r) => b.on('close', r)); b.send('x'.repeat(16001));
+  const closed = new Promise((r, f) => { b.on('close', r); setTimeout(() => f(new Error('no close within 5 s')), 5000); }); b.send('x'.repeat(16001));
   await closed;
   await assert.rejects(open(topic, 'https://evil.example'), (e) => e.status === 403);
   for (const ws of [a, c, d]) ws.close();

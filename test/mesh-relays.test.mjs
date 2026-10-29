@@ -12,7 +12,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 const createSocket = (url, protocols) => new WebSocket(url, protocols, { origin: 'null' });
 const open = (url, opts = {}) => new Promise((resolve, reject) => { const ws = new WebSocket(url, opts); ws.once('open', () => resolve(ws)); ws.once('error', reject); ws.once('unexpected-response', (_, res) => reject(Object.assign(Error('http ' + res.statusCode), { status: res.statusCode }))); });
 const next = ws => new Promise(r => ws.once('message', (d, bin) => r(bin ? d : d.toString())));
-const closed = ws => new Promise(r => ws.once('close', code => r(code)));
+const closed = ws => Promise.race([new Promise(r => ws.once('close', code => r(code))), new Promise((_, f) => setTimeout(() => f(new Error('no close within 5 s')), 5000))]);
 const TOPIC = 'ab'.repeat(16);
 
 async function broadcastContract(base, label) {

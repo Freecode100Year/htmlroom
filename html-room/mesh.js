@@ -41,6 +41,8 @@ const b64 = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 4096) s += S
 const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
 const aad = topic => enc.encode(`private-talk/html-room/v3/mesh|${topic}`);
 const FRAME_TYPES = ['key', 'msg', 'seen'];
+// Background timers must not keep a Node process (tests, tools) alive; browsers ignore this.
+const bg = t => (t?.unref?.(), t);
 
 export async function sealFrame(d, inner) {
   const iv = random(12);
@@ -72,7 +74,7 @@ class Link {
     let ws;
     try { ws = this.ws = this.mesh.createSocket(this.target(), this.protocols()); } catch { this.fail(); return; }
     ws.binaryType = 'arraybuffer';
-    this.timeout = setTimeout(() => this.fail(ws), 10000);
+    this.timeout = bg(setTimeout(() => this.fail(ws), 10000));
     ws.onopen = () => { if (ws === this.ws) this.opened(); };
     ws.onmessage = e => { if (ws === this.ws && !this.mesh.stopped) this.data(e.data); };
     ws.onclose = ws.onerror = () => this.fail(ws);
@@ -85,7 +87,7 @@ class Link {
     try { ws?.close(); } catch {}
     if (was) this.mesh.linkChanged();
     clearTimeout(this.retry);
-    this.retry = setTimeout(() => this.connect(), this.backoff);
+    this.retry = bg(setTimeout(() => this.connect(), this.backoff));
     this.backoff = Math.min(this.backoff * 2, 30000);
   }
   stop() { clearTimeout(this.timeout); clearTimeout(this.retry); clearInterval(this.keepalive); const ws = this.ws; this.ws = null; this.open = false; try { ws?.close(1000); } catch {} }
@@ -159,7 +161,7 @@ class MqttLink extends Link {
       } else if (p.type === 9) { // SUBACK
         if (p.body[2] === 0x80) { this.notice('这个 MQTT 服务器拒绝了订阅，可换一个'); this.fail(); return; }
         this.ready();
-        this.keepalive = setInterval(() => { try { this.ws?.send(Uint8Array.of(0xc0, 0)); } catch {} }, 30000);
+        this.keepalive = bg(setInterval(() => { try { this.ws?.send(Uint8Array.of(0xc0, 0)); } catch {} }, 30000));
       } else if (p.type === 3) { // PUBLISH
         const tl = (p.body[0] << 8) | p.body[1], skip = 2 + tl + ((p.flags >> 1) & 3 ? 2 : 0);
         if (dec.decode(p.body.subarray(2, 2 + tl)) === this.topic()) this.mesh.receive(dec.decode(p.body.subarray(skip)));
@@ -184,8 +186,8 @@ export class MeshConnection {
   }
   start() {
     for (const link of this.links) link.connect();
-    this.claimTimer = setTimeout(() => this.claim(), this.claimDelay);
-    this.timer = setInterval(() => this.sweep(), 1000);
+    this.claimTimer = bg(setTimeout(() => this.claim(), this.claimDelay));
+    this.timer = bg(setInterval(() => this.sweep(), 1000));
     this.linkChanged();
   }
   stop() {
@@ -242,7 +244,7 @@ export class MeshConnection {
   }
   answerSoon() {
     if (!this.me || this.answer) return;
-    this.answer = setTimeout(() => { this.answer = null; this.lastHb = 0; this.sweep(); }, 50 + Math.random() * 250);
+    this.answer = bg(setTimeout(() => { this.answer = null; this.lastHb = 0; this.sweep(); }, 50 + Math.random() * 250));
   }
   claim() {
     if (this.stopped) return;
@@ -255,10 +257,10 @@ export class MeshConnection {
     const n = free[Math.floor(Math.random() * free.length)];
     this.me = n; this.claimedAt = now; this.lastHb = 0; this.settled = false;
     clearTimeout(this.settleTimer);
-    this.settleTimer = setTimeout(() => {
+    this.settleTimer = bg(setTimeout(() => {
       if (this.stopped || this.me !== n) return;
       this.settled = true; this.onhello(n); this.reconcile(true);
-    }, SETTLE_MS);
+    }, SETTLE_MS));
     this.sweep();
   }
   *live() { const now = this.now(); for (const e of this.peers) if (now - e[1].seen <= ALIVE_MS) yield e; }

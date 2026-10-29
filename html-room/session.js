@@ -35,6 +35,7 @@ export class Session {
   scheduleAnnounce(){
     if(this.announceTimer||this.stopped)return;
     this.announceTimer=setTimeout(()=>{this.announceTimer=null;this.run(async()=>{await this.announce();await this.update();});},this.batchMs);
+    this.announceTimer?.unref?.();
   }
   // A hello (ask everyone to answer) is due: soon while someone present is
   // still unknown, otherwise at the slow background pace.

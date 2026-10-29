@@ -1,4 +1,6 @@
 import { MAX_MEMBERS } from '../src/limits.js';
+// Background timers must not keep a Node process (tests, tools) alive; browsers ignore this.
+const bg = t => (t?.unref?.(), t);
 // Availability and priority only. This layer never logs room URLs or credentials.
 export class RelayConnection {
   constructor(relays, { roomId, protocols, onactive, onmessage, onnotice, onfatal, ondisconnect,
@@ -8,10 +10,10 @@ export class RelayConnection {
   }
   start() {
     this.connect(0);
-    this.probeTimer = setInterval(() => {
+    this.probeTimer = bg(setInterval(() => {
       if (!this.stopped && this.active?.ready && this.active.index > 0 && !this.probe) this.connect(0, true);
-    }, 60000);
-    this.heartbeat = setInterval(() => {
+    }, 60000));
+    this.heartbeat = bg(setInterval(() => {
       const r = this.active;
       if (!r?.ready) return;
       if (Date.now() - r.lastPong > 65000) { this.fail(r); return; }
@@ -19,7 +21,7 @@ export class RelayConnection {
         r.lastPing = Date.now();
         try { r.ws.send(JSON.stringify({ type: 'ping' })); } catch { this.fail(r); }
       }
-    }, 1000);
+    }, 1000));
   }
   connect(index, probe = false) {
     if (this.stopped) return;
@@ -27,7 +29,7 @@ export class RelayConnection {
     if (probe) this.probe = r; else this.pending = r;
     try { r.ws = this.createSocket(`${this.relays[index]}/hr/${this.roomId}`, this.protocols(index)); }
     catch { this.fail(r); return; }
-    r.timeout = setTimeout(() => this.fail(r), 10000);
+    r.timeout = bg(setTimeout(() => this.fail(r), 10000));
     r.ws.onerror = () => {
       if (!r.retired && !r.probe) this.onnotice('连不上中继（可能是网络、证书或权限问题），正在重试……');
     };
@@ -81,7 +83,7 @@ export class RelayConnection {
     // An in-flight probe must not compete with the next ordered retry.
     this.retire(this.probe); this.probe = null;
     clearTimeout(this.retry);
-    this.retry = setTimeout(() => this.connect((r.index + 1) % this.relays.length), this.backoff);
+    this.retry = bg(setTimeout(() => this.connect((r.index + 1) % this.relays.length), this.backoff));
     this.backoff = Math.min(this.backoff * 2, 30000);
     if (code !== 1006) this.onnotice('连接断了，正在换一个中继重试……');
   }
