@@ -177,8 +177,8 @@ if [ "$build" -eq 1 ]; then
     root mkdir -m 0755 "$source_dir"
     root tar -xzf "$work/source.tgz" --strip-components=1 -C "$source_dir"
   fi
-  if ! { [ -f "$source_dir/Dockerfile" ] && [ -f "$source_dir/dist/hr.js" ]; }; then
-    fail '源码不完整，缺少 Dockerfile 或 dist/hr.js'
+  if ! { [ -f "$source_dir/Dockerfile" ] && [ -f "$source_dir/dist/hr.html" ]; }; then
+    fail '源码不完整，缺少 Dockerfile 或 dist/hr.html'
   fi
   build_line="    build: $source_dir"
 fi

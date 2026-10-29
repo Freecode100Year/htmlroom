@@ -65,8 +65,8 @@ install_once
 [ "$initial_caddy" = "$(docker compose -p "$project" --project-directory "$work/install" -f "$work/install/compose.yaml" ps -q caddy)" ]
 url=http://localhost:${HR_TEST_HTTP_PORT:-18089}
 curl -fsS "$url/healthz"
-curl -fsS "$url/hr.js" -o "$work/hr.js"
-cmp "$work/hr.js" "$repository/dist/hr.js"
+curl -fsS "$url/hr.html" -o "$work/hr.html"
+cmp "$work/hr.html" "$repository/dist/hr.html"
 # Load an old site rule, then prove rerunning the installer replaces the active config.
 docker run --rm -v "$work:$work" htmlroom-installer:test sh -c '
   sed "/reverse_proxy/i\\    respond /installer-stale-config stale" "$1" >"$1.next"
