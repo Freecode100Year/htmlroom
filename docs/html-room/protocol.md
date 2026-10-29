@@ -51,3 +51,7 @@ Canonical 配置为 `{version:2,relays:[...],roomId,encrypted,...}`。relays 有
 ## 自定义中继（custom）
 
 V2/V3 配置可选字段 `custom`，只能为 `true`（缺省表示不允许）。为 true 时文件 CSP connect-src 在精确中继源之前加 `wss: ws://localhost:* ws://127.0.0.1:*`，进房前可输入本次使用的中继列表；输入经 `relayList` 规范化后替换 relays 并按类型设定 version，其余字段不变（`sessionRelays`）。custom 不参与任何派生和 AAD，读取文件仍要求整份 HTML 与 `render(config)` 一致。
+
+## 文件即服务器
+
+文件结构：`<!--` + 说明行 + 打包后的 `serve.js` + `\n/*\n` + `-->\n` + 页面 HTML + `<!-- */ -->\n`。浏览器把开头部分视为文档首个注释节点；Node（CommonJS）把首行视为 HTML 式行注释，把页面视为块注释。客户端与服务端代码都不得含 `*/`、`-->`、`<!--`、`--!>`、`<script`、`<style`。

@@ -4,7 +4,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { makeConfig, relayEntry, relayList, validate, validateBlank, CUSTOM_SOURCES } from '../html-room/crypto.js';
 import { escapeConfig } from '../html-room/transport.js';
-import { roomHtml, withRelays, configFromRoomHtml } from '../html-room/template.js';
+import { roomHtml, withRelays, configFromRoomHtml, serverComment, SERVER_FORBIDDEN } from '../html-room/template.js';
 export { escapeConfig };
 const root=fileURLToPath(new URL('../',import.meta.url));
 const hash=s=>createHash('sha256').update(s).digest('base64');
@@ -14,11 +14,17 @@ export async function render(config, allowed=[]) {
  const result=await build({entryPoints:[root+'html-room/file.js'],bundle:true,write:false,format:'iife',target:['es2020'],minify:true,legalComments:'none'});
  // The script embeds the room HTML (template.js) to re-emit itself; tag openers
  // occur only inside string literals, where \x3C is the same character.
- const script=result.outputFiles[0].text.trimEnd().replace(/<(\\?\/?)(script|style)/gi,'\\x3C$1$2');
- if(/<\/?(script|style)/i.test(script))throw Error('可执行脚本含不安全标签');
+ // Likewise comment delimiters, which would end the file's HTML or Node comments
+ // early; they too occur only inside literals (see html-room/template.js).
+ const script=result.outputFiles[0].text.trimEnd().replace(/<(\\?\/?)(script|style)/gi,'\\x3C$1$2')
+  .replace(/<!--/g,'\\x3C!--').replace(/--(!?)>/g,'-\\x2D$1>').replace(/\*\//g,'*\\/');
+ if(/<\/?(script|style)|<!--|--!?>|\*\//i.test(script))throw Error('可执行脚本含不安全标签或注释符');
  const style=(await readFile(root+'html-room/style.css','utf8')).trimEnd();
  const scriptHash=hash(script),styleHash=hash(style);
- const {html,csp}=roomHtml(config,script,style,scriptHash,styleHash);
+ // The relay half, for `node index.html`: Node standard library only.
+ const server=(await build({entryPoints:[root+'html-room/serve.js'],bundle:true,write:false,format:'cjs',platform:'node',target:['node18'],minify:true,legalComments:'none'})).outputFiles[0].text.trimEnd();
+ if(SERVER_FORBIDDEN.test(server))throw Error('服务端代码含不安全序列');
+ const {html,csp}=roomHtml(config,script,style,scriptHash,styleHash,serverComment(server));
  return {html,scriptHash,styleHash,csp,bytes:Buffer.byteLength(html)};
 }
 // The site is the creator file itself: hr.html (and index.html on Pages) is

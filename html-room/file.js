@@ -12,6 +12,9 @@ import { retargetHtml, htmlFor, withRelays, configFromRoomHtml } from './templat
 
 // Read before anything else: the bytes CSP already pinned by hash.
 const ownScript = document.currentScript?.textContent, ownStyle = document.querySelector('style')?.textContent;
+// The relay half (the comment before <!doctype html>), carried into every new file.
+const ownComment = document.firstChild?.nodeType === Node.COMMENT_NODE ? document.firstChild.data : '';
+const own = { script: ownScript, style: ownStyle, comment: ownComment };
 const el = id => document.getElementById(id);
 const hosted = /^https?:$/.test(location.protocol);
 const cjk = e => /[一-鿿]/.test(e?.message ?? '');
@@ -32,7 +35,7 @@ function enableRetarget(config) {
   el('rt-make').addEventListener('click', async () => {
     el('rt-download').hidden = true; el('rt-make').disabled = true; say('');
     try {
-      const r = await retargetHtml(config, el('rt-relay').value, ownScript, ownStyle);
+      const r = await retargetHtml(config, el('rt-relay').value, own);
       if (JSON.stringify(r.config.relays) === JSON.stringify(config.relays)) { say('地址和现在一样，不用换。'); return; }
       offer('rt-download', r.html);
       say(`新文件已生成（中继：${r.config.relays.join('、')}）。口令不变。请把它发给所有人，大家都用新文件打开，再核对一次安全码。`);
@@ -61,7 +64,7 @@ function enableMaker(defaults, { open }) {
       const relays = relayList(el('mk-relay').value), password = el('mk-pass').value;
       if (password && new TextEncoder().encode(password).length > 1024) throw Error('口令太长了');
       const next = await makeConfig(relays, password || undefined, { custom: el('mk-custom').checked });
-      offer('mk-download', await htmlFor(next, ownScript, ownStyle));
+      offer('mk-download', await htmlFor(next, own));
       el('mk-out').hidden = false; el('mk-pass').value = '';
       // A link only works on a hosted creator, which can open any room.
       if (hosted) { el('mk-link').value = location.origin + location.pathname + fragmentFor(next); el('mk-link-row').hidden = false; }
@@ -78,13 +81,13 @@ function enableMaker(defaults, { open }) {
       if (file.size > 400000) throw Error('这个文件太大了，不是房间文件');
       let old; try { old = configFromRoomHtml(await file.text()); } catch { throw Error('读不出房间信息。如果是很早的旧版文件，请重新创建房间'); }
       const next = withRelays(old, el('cv-relay').value, el('cv-custom').checked);
-      offer('cv-download', await htmlFor(next, ownScript, ownStyle));
+      offer('cv-download', await htmlFor(next, own));
       say(`新文件已生成（中继：${next.relays.join('、')}）。${next.encrypted ? '口令不变。' : ''}请把它发给所有人，大家都用新文件打开，再核对一次安全码。`);
     } catch (e) { say(cjk(e) ? e.message : '生成失败：请检查中继地址。'); }
     finally { el('cv-make').disabled = false; }
   });
   // On the site: the page itself, saved as a blank creator, works offline.
-  if (hosted) htmlFor(defaults.length ? { relays: defaults } : {}, ownScript, ownStyle).then(html => { offer('mk-self', html); el('mk-self-row').hidden = false; }).catch(() => {});
+  if (hosted) htmlFor(defaults.length ? { relays: defaults } : {}, own).then(html => { offer('mk-self', html); el('mk-self-row').hidden = false; }).catch(() => {});
 }
 
 function creatorOnly() {

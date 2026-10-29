@@ -44,6 +44,22 @@
 - **离线创建器。** 网站本身就是一个不带房间的 `index.html`。在网站底部点「下载离线版」保存下来，以后断网也能用它创建房间。
 - 只有聊天时需要连上中继。
 
+## 房间文件同时是服务器
+
+同一个 `index.html`，用浏览器打开是聊天室；装了 [Node.js](https://nodejs.org/)（18 或更新）的电脑上运行它，就是中继服务器，什么都不用安装：
+
+```sh
+node index.html            # 本机中继 + 创建页面 http://127.0.0.1:8080/
+node index.html --tunnel   # 再加一个免费公网地址（需要 cloudflared）
+node index.html --help     # 全部选项
+```
+
+- 空白创建器运行时，同时提供创建页面和中继，**一个文件就是一个完整的网站**。
+- 房间文件运行时只当中继，**不会把自己当网页公开**，以免泄露房间钥匙。
+- 支持经典房间（`wss://…`）和去中心化房间（`bc+wss://…/bc/`）。其他设备需要 `wss://`：加 `--tunnel`，或用 `--tls-cert`/`--tls-key`。
+- 如果提示 `Unknown file extension ".html"`，说明文件所在目录上层有声明 `"type": "module"` 的 package.json：换个目录，或复制成 `relay.cjs` 再运行 `node relay.cjs`。
+- 只运行你信任或核验过（`node scripts/verify-room-file.mjs 文件`）的文件：运行等于在电脑上执行文件里的代码。
+
 ## 能做什么，不能做什么
 
 | ✅ 可以 | ❌ 不可以 |

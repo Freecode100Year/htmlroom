@@ -232,6 +232,8 @@ Vercel 配置同名构建变量并重新部署。旧 `HR_PAGES_RELAY` 仍接受�
 
 新文件由当前页面正在运行的脚本和样式字节（`currentScript`、`<style>`）加上新配置拼出（`htmlFor`），不联网、不请求任何资源，结果与 `render(config)` 逐字节一致，可用 `verify-room-file.mjs` 核验。空白文件的 CSP connect-src 为 `wss: ws://localhost:* ws://127.0.0.1:*`，以便打开任意房间链接。
 
+文件同时是 Node 脚本：`<!doctype html>` 之前的 HTML 注释里是 `html-room/serve.js` 打包后的中继（只用 Node 标准库，复用 `src/rules.js`），对 Node 来说第一行是 HTML 式行注释，页面部分被末尾 `<!-- */ -->` 闭合的块注释包住。`node index.html` 提供 `/hr/`、`/bc/`、`/healthz`，空白文件还提供自身网页（HTTP CSP 取自文件 meta CSP）；房间文件不提供网页。构建会拒绝客户端或服务端代码中出现会提前结束注释的 `*/`、`-->`、`<!--`、`--!>`（客户端字面量中的这些序列被改写为等价转义）。浏览器生成新文件时从 `document.firstChild` 读回这段注释，原样带入新文件。`test/file-relay.test.mjs` 用与 Node/Worker 相同的中继探针测试它。
+
 `npm run build` 生成 `dist/hr.html`（网站首页，服务器在运行时以自身地址作为默认中继）、`dist/hr-template.html`（空白创建器，发布核验基准）和 `dist/_headers`（HTTP CSP 固定同一脚本/样式哈希）。`build:pages` 把预设中继写进空白配置，输出 `index.html`/`hr.html`。旧的 `hr.js`/`hr.css` 网页入口已移除。
 
 ## 去中心化房间（version 3）
