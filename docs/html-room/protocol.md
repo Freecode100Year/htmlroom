@@ -14,7 +14,9 @@ Canonical 配置为 `{version:2,relays:[...],roomId,encrypted,...}`。relays 有
 
 本版本选择跨中继复用同一 roomId、access、公告密钥和 bind（上文 HKDF v1 域字符串不变），以保持冻结派生向量和现有中继鉴权。roomId 仍为 SHA-256(access)，master 不发送给中继；仅 access/resume 通过 WebSocket 子协议用于鉴权，不放在查询参数或日志里。这个选择让多个中继可以关联同一房间；未采用按中继域分离，不主张跨中继不可关联。
 
-口令包装格式、310000 轮 PBKDF2 和 wrap AAD 不变。relays 是公开路由配置，不作为身份保证；不能通过修改此列表获得主密钥，仍需通过可信渠道核验整个房间文件。
+口令包装格式、310000 轮 PBKDF2 和 wrap AAD 不变。
+
+更换中继：relays 不参与 roomId 派生和 wrap AAD，因此只替换 relays 即得到同一房间的新配置（master 或 salt/iv/ciphertext 原样保留，无需口令）。房间文件读取自身 `currentScript` 与 `<style>` 的精确字节，用与构建脚本共用的 `html-room/template.js` 重新生成整份 HTML，CSP connect-src 仍为新列表的精确源；结果与 `render(newConfig)` 逐字节一致。网页生成器与 CLI `retarget` 读取旧文件配置后用当前模板重建。relays 是公开路由配置，不作为身份保证；不能通过修改此列表获得主密钥，仍需通过可信渠道核验整个房间文件。
 
 ## 连接状态与切换
 

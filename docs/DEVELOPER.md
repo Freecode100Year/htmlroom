@@ -220,6 +220,24 @@ HR_PAGES_RELAYS='wss://primary.example.com,wss://backup.example.com' npm run bui
 
 Vercel 配置同名构建变量并重新部署。旧 `HR_PAGES_RELAY` 仍接受单项，`HR_PAGES_RELAYS` 优先。网页只接纳 `relays` 全部属于构建白名单的链接，每个中继都须放行该前端的精确 HTTPS Origin。文件静态恢复链接指向首选中继的 `/hr.html`，其网页也须支持该完整列表，否则应在支持脚本的浏览器中直接打开文件。不要把房间主密钥放到查询参数中。
 
+## 更换中继（迁移到自建中继）
+
+`relays` 只是公开路由配置：roomId 由主密钥派生，口令包装的 AAD 只绑定 roomId，二者都不含中继地址。因此同一房间可以搬到任何兼容中继（本项目的 Node/Docker 或 Cloudflare 中继），新中继无需任何房间预配置——文件以 `Origin: null` 连接，中继默认放行。
+
+三种方式，结果逐字节相同，都能通过 `verify-room-file.mjs`：
+
+- **房间文件内**：打开 `index.html`，展开「更换中继」，填写新中继（如 `wss://relay.example.com`，可在后面保留旧中继作备用），点击「生成新房间文件」并下载。无需口令。
+- **网页生成器**：在「已有房间文件？改用其他中继」中选择旧文件并填写新中继。文件只在浏览器内读取；会用本站模板重建，所以没有该按钮的旧文件也能转换（旧 `version: 1` 文件除外）。
+- **命令行**：
+
+```sh
+node scripts/build-html-room.mjs retarget \
+  --in old/index.html --out new/index.html \
+  --relay wss://relay.example.com [--relay wss://backup.example.com]
+```
+
+新文件的 CSP `connect-src` 仍只列出精确的新中继源，不使用通配符。注意：所有成员必须改用同一份新文件，连到不同中继的成员互相看不到消息；新中继运营者可看到 roomId 和入房凭证（可借此占用旧中继名额），但拿不到主密钥、无法解密；切换后重新核对安全码。浏览器要求 WSS 证书有效，用裸 IP 时需要为该 IP 签发的证书，使用域名配合一键安装脚本最简单。
+
 ## 命令行生成与核验房间文件
 
 ```sh

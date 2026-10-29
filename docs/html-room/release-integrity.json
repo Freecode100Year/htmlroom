@@ -1,15 +1,15 @@
 {
   "version": 2,
-  "stage": "multi-relay-htmlroom",
+  "stage": "relay-retarget-htmlroom",
   "esbuild": "0.28.2",
   "artifacts": {
     "html-room-template.html": {
-      "bytes": 48310,
-      "sha256": "d9b9a7555ad78ab1c33228af2e9e572a57a8b340d9a2fc1348e1cd53a878a558",
-      "csp": "default-src 'none'; script-src 'sha256-tTqNSL291JCaHVl82ldEjeyFgHXa1c+NAHOq6aPMrXM='; style-src 'sha256-tjnnYoX05TfNl+NsaNK4PRoAh8mTsDFSpuWgGDuoa88='; connect-src 'none'; base-uri 'none'; form-action 'none'"
+      "bytes": 55876,
+      "sha256": "03e3a00e545d8612a2e04e0421cff7ccbca43790d40891fd9be533bd836a90e2",
+      "csp": "default-src 'none'; script-src 'sha256-+lC7bl6rUf3/5EFtJs5OlWpPRK1SZf8jxIWqtkdKPvY='; style-src 'sha256-tjnnYoX05TfNl+NsaNK4PRoAh8mTsDFSpuWgGDuoa88='; connect-src 'none'; base-uri 'none'; form-action 'none'"
     }
   },
-  "scriptHashBase64": "tTqNSL291JCaHVl82ldEjeyFgHXa1c+NAHOq6aPMrXM=",
-  "scriptHashHex": "b53a8d48bdbdd4909a1d597cda57448dec858075dad5cf8d0073aae9a3ccad73",
+  "scriptHashBase64": "+lC7bl6rUf3/5EFtJs5OlWpPRK1SZf8jxIWqtkdKPvY=",
+  "scriptHashHex": "fa50bb6e5eab51fdffe4416d26ce4e956a4f44ad5265ff23c485aab6474a3ef6",
   "styleHashBase64": "tjnnYoX05TfNl+NsaNK4PRoAh8mTsDFSpuWgGDuoa88="
 }
