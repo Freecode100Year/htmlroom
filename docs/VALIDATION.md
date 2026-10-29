@@ -1,7 +1,7 @@
 # 独立提取验证
 
 来源：private-talk `9fac2c32c8159662eb5f1fcfa9ff33cd3486dd50`。
-本地环境：Node.js 24.12.0、Playwright 1.64.1、Chromium 156.0.8078.4；Docker 使用 Node.js 22 Alpine。
+本地环境：Node.js 24.20.0、Playwright 1.64.1、Chromium 156.0.8078.4；Docker 使用 Node.js 22 Alpine。
 
 ## 本地结果
 

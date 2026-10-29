@@ -10,7 +10,7 @@ Meta CSP: default-src none; exact executable-script/style hashes, exact relay co
 
 Optional #hr1= entry can expose master to the hosting page's code; it is not equivalent to a verified offline file. No third-party code. Relay can deny, reorder, drop and misrepresent presence; safety code verification via independent channel matters. Shared master holders can introduce their own identities. No claim of anonymity against traffic analysis, protection on compromised devices, or independently audited ML-KEM.
 
-Local file scripts/WebCrypto/WSS vary in iOS and WeChat/QQ previews. Real-device testing is mandatory before compatibility claims. Absent hardware must be marked unverified. Remote relay is still necessary. 
+Local file scripts/WebCrypto/WSS vary in iOS and WeChat/QQ previews. Real-device testing is mandatory before compatibility claims. Absent hardware must be marked unverified. Remote relay is still necessary.
 
 ## 整合后的网页入口
 
