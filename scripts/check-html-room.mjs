@@ -2,12 +2,12 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { render } from './build-html-room.mjs';
-import { validate } from '../html-room/crypto.js';
+import { validate, validateBlank } from '../html-room/crypto.js';
 const hash=s=>createHash('sha256').update(s).digest('base64');
 export async function checkHtml(html, expected) {
  const scripts=[...html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g)];
  if(scripts.length!==2 || scripts[0][1]!==' id="pt-room-config" type="application/json"' || scripts[1][1]!=='')throw Error('脚本结构改变');
- const config=JSON.parse(scripts[0][2]);if(config.version)validate(config);
+ const config=JSON.parse(scripts[0][2]);if(config.version)validate(config);else validateBlank(config);
  const canonical=await render(config,config.version?config.relays:[]);
  if(canonical.html!==html)throw Error('HTML/CSP/脚本与可复现构建不符');
  if(hash(scripts[1][2])!==expected)throw Error('固定脚本哈希不符');

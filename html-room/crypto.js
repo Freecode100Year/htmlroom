@@ -67,7 +67,15 @@ export function relayList(input) {
 // CSP sources a custom-relay file adds: any WSS relay, plus the loopback WS
 // addresses relayEntry accepts for local development.
 export const CUSTOM_SOURCES = ['wss:', 'ws://localhost:*', 'ws://127.0.0.1:*']; // CSP has no IPv6 literals
-export const connectSources = config => [...(config.custom ? CUSTOM_SOURCES : []), ...config.relays.map(cspSource)];
+// A blank file (no room: the offline generator, and the hosted site) may join
+// any room from a link, so it admits what a custom-relay file does.
+export const connectSources = config => !config.version ? CUSTOM_SOURCES : [...(config.custom ? CUSTOM_SOURCES : []), ...config.relays.map(cspSource)];
+// Blank files may carry default relays for the generator: {} or {relays:[...]}.
+export function validateBlank(c) {
+  if (!c || typeof c !== 'object' || Array.isArray(c) || c.version !== undefined || Object.keys(c).some(k => k !== 'relays')) throw Error('空白文件配置错误');
+  if (c.relays !== undefined && JSON.stringify(relayList(c.relays)) !== JSON.stringify(c.relays)) throw Error('默认中继格式错误');
+  return c;
+}
 export const versionFor = relays => relays.some(r => relayKind(r) !== 'hr') ? 3 : 2;
 const KDF = { name:'PBKDF2', hash:'SHA-256', iterations:310000 };
 const aad = roomId => enc.encode(`private-talk/html-room/v1/wrap|${roomId}`);

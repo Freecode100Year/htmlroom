@@ -212,13 +212,27 @@ node scripts/build-html-room.mjs room \
 
 跨中继会重新握手并清除旧中继的 resume、成员编号绑定和回执状态；未发送的内存消息继续排队，已提交但未确认的消息显示送达状态未知，不自动跨中继重放。请核实后手动重发并重新核对安全码。不同网络环境下成员仍可能暂时分裂，在线人数只代表当前中继，不能保证全局汇合。
 
-网页入口不能从房间配置任意扩大连接范围。普通 Node/Worker 网页默认只允许同源中继；可生成多中继房间文件，但其他中继组合不会生成本站房间链接。静态前端可在构建时预设精确白名单（同时也是默认顺序）：
+网站就是一个空白房间文件（创建器），能打开任意中继的房间链接。静态前端可在构建时预设创建器的默认中继（同时也是默认顺序）：
 
 ```sh
 HR_PAGES_RELAYS='wss://primary.example.com,wss://backup.example.com' npm run build:pages
 ```
 
-Vercel 配置同名构建变量并重新部署。旧 `HR_PAGES_RELAY` 仍接受单项，`HR_PAGES_RELAYS` 优先。网页只接纳 `relays` 全部属于构建白名单的链接，每个中继都须放行该前端的精确 HTTPS Origin。文件静态恢复链接指向首选中继的 `/hr.html`，其网页也须支持该完整列表，否则应在支持脚本的浏览器中直接打开文件。不要把房间主密钥放到查询参数中。
+Vercel 配置同名构建变量并重新部署。旧 `HR_PAGES_RELAY` 仍接受单项，`HR_PAGES_RELAYS` 优先。经典中继须放行该前端的精确 HTTPS Origin（`HR_ALLOWED_ORIGINS`）才能从网站链接入房；从文件打开（Origin 为 `null`）不受影响。不要把房间主密钥放到查询参数中。
+
+## 单文件：每个文件都是创建器
+
+整个前端只有一个文件，由 `html-room/template.js` 生成，脚本入口是 `html-room/file.js`：
+
+| 文件内容 | 打开后 |
+| --- | --- |
+| 房间配置 | 聊天；「换中继」；折叠的「创建一个新房间」 |
+| 空白配置 `{}` 或 `{"relays":[…]}` | 创建器（创建房间、转换旧文件、托管时可下载离线版） |
+| 空白配置 + `#hr1=` 链接 | 用链接里的房间聊天 |
+
+新文件由当前页面正在运行的脚本和样式字节（`currentScript`、`<style>`）加上新配置拼出（`htmlFor`），不联网、不请求任何资源，结果与 `render(config)` 逐字节一致，可用 `verify-room-file.mjs` 核验。空白文件的 CSP connect-src 为 `wss: ws://localhost:* ws://127.0.0.1:*`，以便打开任意房间链接。
+
+`npm run build` 生成 `dist/hr.html`（网站首页，服务器在运行时以自身地址作为默认中继）、`dist/hr-template.html`（空白创建器，发布核验基准）和 `dist/_headers`（HTTP CSP 固定同一脚本/样式哈希）。`build:pages` 把预设中继写进空白配置，输出 `index.html`/`hr.html`。旧的 `hr.js`/`hr.css` 网页入口已移除。
 
 ## 去中心化房间（version 3）
 

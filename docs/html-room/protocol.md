@@ -30,9 +30,9 @@ Canonical 配置为 `{version:2,relays:[...],roomId,encrypted,...}`。relays 有
 
 配置放在不可执行 application/json，转义规则不变。文件 script-src/style-src 保持精确 SHA-256；connect-src 列出 relays 的每一个精确源，禁止通配符、宽泛 wss: 或从链接动态扩展 CSP。CLI 的每个 relay 都须由明确 allow-relay 白名单覆盖。
 
-`#hr1=` 仍为 UTF-8 canonical JSON 的无 padding base64url，最大编码 8192 字符、解码 4096 字节；拒绝坏编码、未知字段和旧配置。读取后清除地址栏。网页默认只允许 ownRelay；静态部署可用 HR_PAGES_RELAYS 构建固定白名单，链接中的所有 relays 必须属于该白名单。生成器可以为任意经过校验的精确中继组合生成离线文件，但只有白名单覆盖全部 relays 时提供本站房间链接。
+`#hr1=` 仍为 UTF-8 canonical JSON 的无 padding base64url，最大编码 8192 字符、解码 4096 字节；拒绝坏编码、未知字段和旧配置。读取后清除地址栏。网站即空白房间文件（配置 `{}` 或仅含默认 `relays`），其 CSP 允许 `wss:` 与回环 WS，因此可打开任意中继的链接；托管时为每个新房间提供本站链接，从本地文件创建时不提供链接。
 
-静态预览恢复链接指向首选中继的 /hr.html，并保留完整配置；目标网页若未预设完整中继白名单将拒绝入房，应改用直接打开的验证过的房间文件。没有引入第三方脚本或持久化存储。普通消息和 seen 回执继续使用 Group 签名链。
+静态预览恢复链接指向首选中继的 /hr.html，并保留完整配置。没有引入第三方脚本或持久化存储。普通消息和 seen 回执继续使用 Group 签名链。
 
 ## V3 去中心化中继
 

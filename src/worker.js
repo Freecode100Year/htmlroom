@@ -43,7 +43,7 @@ export default {
         return env.ASSETS.fetch(new Request(url,request));
       }
       if(url.pathname==='/healthz')return Response.json({ok:true,version:'1.0.0'},{headers:PLAIN_HEADERS});
-      if(!['/hr.html','/hr.js','/hr.css','/hr-template.html'].includes(url.pathname))return plain(404,'not found');
+      if(!['/hr.html','/hr-template.html'].includes(url.pathname))return plain(404,'not found');
       return env.ASSETS.fetch(request);
     }
     if (!ROOM_ID.test(m[2])) return plain(400, 'bad room');

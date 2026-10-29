@@ -2,14 +2,15 @@ import { build } from 'esbuild';
 import { createHash } from 'node:crypto';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { makeConfig, relayEntry, relayList, validate } from '../html-room/crypto.js';
+import { makeConfig, relayEntry, relayList, validate, validateBlank, CUSTOM_SOURCES } from '../html-room/crypto.js';
 import { escapeConfig } from '../html-room/transport.js';
-import { roomHtml, withRelays, configFromRoomHtml, repoLink } from '../html-room/template.js';
+import { roomHtml, withRelays, configFromRoomHtml } from '../html-room/template.js';
 export { escapeConfig };
 const root=fileURLToPath(new URL('../',import.meta.url));
 const hash=s=>createHash('sha256').update(s).digest('base64');
 export async function render(config, allowed=[]) {
  if(config.version){validate(config);if(!config.relays.every(relay=>allowed.map(relayEntry).includes(relay)))throw Error('中继源不在明确白名单内');}
+ else validateBlank(config);
  const result=await build({entryPoints:[root+'html-room/file.js'],bundle:true,write:false,format:'iife',target:['es2020'],minify:true,legalComments:'none'});
  // The script embeds the room HTML (template.js) to re-emit itself; tag openers
  // occur only inside string literals, where \x3C is the same character.
@@ -20,16 +21,25 @@ export async function render(config, allowed=[]) {
  const {html,csp}=roomHtml(config,script,style,scriptHash,styleHash);
  return {html,scriptHash,styleHash,csp,bytes:Buffer.byteLength(html)};
 }
+// The site is the creator file itself: hr.html (and index.html on Pages) is
+// a blank room file that creates rooms offline and opens #hr1= links. Its HTTP
+// headers pin the same script and style hashes as the file's own meta CSP.
 export async function buildWeb(check=false, {defaultRelay=null, outputDir=root+'dist/'}={}) {
  const defaultRelays=defaultRelay ? relayList(defaultRelay) : [];
- if(defaultRelays.some(relay=>!relay.startsWith('wss://')))throw Error('静态前端中继必须使用 WSS');
+ if(defaultRelays.some(relay=>!/^(?:(?:bc|nostr|mqtt)\+)?wss:\/\//.test(relay)))throw Error('静态前端中继必须使用 WSS');
  if(!check)await mkdir(outputDir,{recursive:true});
- const t=await render({},[]),style=(await readFile(root+'html-room/style.css','utf8')).trimEnd();
- const built=await build({entryPoints:[root+'html-room/web.js'],bundle:true,write:false,format:'iife',target:['es2020'],minify:true,legalComments:'none',define:{PT_DEFAULT_RELAYS:JSON.stringify(defaultRelays),PT_SCRIPT_HASH:JSON.stringify(t.scriptHash),PT_STYLE_HASH:JSON.stringify(t.styleHash),PT_TEMPLATE_HASH:JSON.stringify(hash(t.html))}});
- const maker=`<form id="maker"><h1>创建加密聊天室</h1><p>点一下就能建好一个房间，把文件或链接发给朋友，打开就能聊。全程在你的浏览器里完成，服务器看不到聊天内容。</p><label for="mk-pass">口令（可选，相当于门上再加一把锁）</label><input id="mk-pass" type="password" maxlength="1024" autocomplete="off"><button id="mk-gen" type="button">随机生成口令</button><details id="mk-advanced"><summary>中继服务器（一般不用改）</summary><p class="hint">中继负责帮大家传消息，看不到内容。想换成自己的或多个服务器：经典 <code>wss://…</code> 最多 3 个，坏了会自动换下一个；去中心化 <code>bc+wss://…</code>、<code>nostr+wss://…</code>、<code>mqtt+wss://…/mqtt</code> 最多 5 个，同时使用。两类不能混用。</p><label for="mk-relay">中继地址（多个用空格隔开）</label><input id="mk-relay" required maxlength="1200" spellcheck="false"><button id="mk-mesh" type="button">改用去中心化中继</button><label class="check"><input id="mk-custom" type="checkbox" checked> 允许在房间文件里自定义中继</label><p class="hint">打开时，拿到文件的人进房前可以改填任意 <code>wss://</code> 中继。关掉更严格：文件只能连上面这些中继。</p></details><button id="mk-make">创建房间</button><p id="mk-error" role="status"></p><section id="mk-out" hidden><a id="mk-download" download="index.html">下载房间文件（index.html）</a><section id="mk-link-row" hidden><p>或者复制房间链接发给朋友。微信、QQ 里打不开文件时，用链接更方便。</p><input id="mk-link" readonly aria-label="房间链接"><button id="mk-copy" type="button">复制链接</button></section></section><details id="cv"><summary>已经有房间文件？换一个中继服务器</summary><p>选择房间文件，填上新的中继地址，会生成同一个房间的新文件，口令不变。文件只在你的浏览器里读取，不会上传。</p><label for="cv-file">房间文件</label><input id="cv-file" type="file" accept=".html,text/html"><label for="cv-relay">新的中继地址（多个用空格隔开）</label><input id="cv-relay" maxlength="1200" autocomplete="off" spellcheck="false" placeholder="wss://relay.example.com"><label class="check"><input id="cv-custom" type="checkbox" checked> 允许在新文件里自定义中继</label><button id="cv-make" type="button">生成新文件</button><p id="cv-error" role="status"></p><a id="cv-download" download="index.html" hidden>下载新的房间文件</a></details><p class="hint">HTML Room 开源项目：${repoLink}</p></form>`;
- const body=t.html.match(/<body>([\s\S]*?)<script id="pt-room-config"/)[1];
- const page=`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'${defaultRelays.length?' '+defaultRelays.join(' '):''}; base-uri 'none'; form-action 'none'"><title>HTML Room · 加密聊天室</title><link rel="stylesheet" href="hr.css"><script defer src="hr.js"></script></head><body>${maker}<section id="room-panel" hidden>${body}</section></body></html>\n`;
- const files={'hr-template.html':t.html,'hr.js':built.outputFiles[0].text,'hr.css':style+'\n','hr.html':page};
+ const t=await render({},[]), site=defaultRelays.length ? await render({relays:defaultRelays},[]) : t;
+ const headers=`/*
+  Content-Security-Policy: default-src 'none'; script-src 'sha256-${t.scriptHash}'; style-src 'sha256-${t.styleHash}'; connect-src 'self' ${CUSTOM_SOURCES.join(' ')}; img-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Cache-Control: no-store
+  NEL: {"max_age":0}
+  Referrer-Policy: no-referrer
+  X-Content-Type-Options: nosniff
+  Strict-Transport-Security: max-age=31536000
+  Cross-Origin-Opener-Policy: same-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
+`;
+ const files={'hr-template.html':t.html,'hr.html':site.html,'_headers':headers};
  for(const [name,text] of Object.entries(files)){
   const path=outputDir+name;
   if(check){if(await readFile(path,'utf8')!==text)throw Error(name+' 与源码构建不符');}

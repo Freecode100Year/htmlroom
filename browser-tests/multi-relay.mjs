@@ -70,14 +70,20 @@ try {
   await maker.locator('#mk-advanced summary').click();
   await maker.locator('#mk-relay').fill(relays.join(', ')); await maker.locator('#mk-make').click();
   await maker.locator('#mk-out').waitFor({ state: 'visible' });
-  assert.equal(await maker.locator('#mk-link-row').isHidden(), true, 'hosted entry cannot expand its trusted relay list');
+  // The hosted site is the creator file and opens any room link (CSP wss:).
+  assert.equal(await maker.locator('#mk-link-row').isVisible(), true);
   const download = maker.waitForEvent('download'); await maker.locator('#mk-download').click();
   const html = await readFile(await (await download).path(), 'utf8');
   assert.deepEqual(JSON.parse(html.match(/type="application\/json">(.*?)<\/script>/s)[1]).relays, relays);
-  let opened = 0; maker.on('websocket', () => opened++);
+  const opened = []; maker.on('websocket', s => opened.push(s.url()));
   await maker.goto(`http://127.0.0.1:${port}/hr.html${fragmentFor(config)}`);
-  await maker.getByText(/房间链接打不开/).waitFor(); assert.equal(opened, 0);
-  console.log('PASS: two real relays, failover, bidirectional backup chat, primary recovery, maker and hosted allowlist');
+  await maker.locator('#enter').click();
+  await maker.locator('#relay-status').filter({ hasText: relays[0] }).waitFor({ timeout: 15000 });
+  assert.ok(opened.length && opened.every(u => relays.some(r => u.startsWith(r))), 'a link connects only to its own relays');
+  let bad = 0; const broken = await browser.newPage(); broken.on('websocket', () => bad++);
+  await broken.goto(`http://127.0.0.1:${port}/hr.html#hr1=broken`);
+  await broken.getByText(/房间链接打不开/).waitFor(); assert.equal(bad, 0);
+  console.log('PASS: two real relays, failover, bidirectional backup chat, primary recovery, maker and hosted links to any relays');
 } finally {
   await browser?.close(); await stop(0); await stop(1); await rm(dir, { recursive: true, force: true });
 }

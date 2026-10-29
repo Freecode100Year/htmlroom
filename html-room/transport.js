@@ -1,4 +1,4 @@
-import { validate, relayEntry, relayKind, relayUrl, connectSources } from './crypto.js';
+import { validate, validateBlank, relayEntry, relayKind, relayUrl, connectSources } from './crypto.js';
 // The page that can open this room from a link: a classic relay's /hr.html, or
 // for a decentralized room whose relays are all bc paths on one server, that
 // server's page. Other relay mixes have no web entry; use the file.
@@ -30,8 +30,8 @@ export async function fillTemplate(template,config,allowed,scriptHash,styleHash,
  const scripts=[...template.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g)],styles=[...template.matchAll(/<style>([\s\S]*?)<\/style>/g)];
  if(scripts.length!==2||scripts[0][1]!==' id="pt-room-config" type="application/json"'||scripts[0][2]!=='{}'||scripts[1][1]!==''||styles.length!==1)throw Error('模板结构无效');
  if(await digest(scripts[1][2])!==scriptHash||await digest(styles[0][1])!==styleHash)throw Error('模板完整性不符');
- const csp=`default-src 'none'; script-src 'sha256-${scriptHash}'; style-src 'sha256-${styleHash}'; connect-src 'none'; base-uri 'none'; form-action 'none'`;
- const marker=`<meta http-equiv="Content-Security-Policy" content="${csp}">`;
+ const csp=c=>`default-src 'none'; script-src 'sha256-${scriptHash}'; style-src 'sha256-${styleHash}'; connect-src ${connectSources(c).join(' ')}; base-uri 'none'; form-action 'none'`;
+ const marker=`<meta http-equiv="Content-Security-Policy" content="${csp({})}">`;
  if(!template.includes(marker))throw Error('模板 CSP 无效');
- return template.replace(marker,`<meta http-equiv="Content-Security-Policy" content="${csp.replace("connect-src 'none'",`connect-src ${connectSources(config).join(' ')}`)}">`).replace(previewHelp({}),previewHelp(config)).replace('<script id="pt-room-config" type="application/json">{}</script>',`<script id="pt-room-config" type="application/json">${escapeConfig(config)}</script>`);
+ return template.replace(marker,`<meta http-equiv="Content-Security-Policy" content="${csp(config)}">`).replace(previewHelp({}),previewHelp(config)).replace('<script id="pt-room-config" type="application/json">{}</script>',`<script id="pt-room-config" type="application/json">${escapeConfig(config)}</script>`);
 }

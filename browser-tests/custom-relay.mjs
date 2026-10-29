@@ -1,5 +1,5 @@
 // A room file made for a relay that is gone: members type their own relay into
-// the file and chat. Strict files and web links show no relay box.
+// the file and chat. Strict files show no relay box; links opened on the site do.
 import { chromium } from 'playwright';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -61,7 +61,7 @@ try {
   const webConfig = await makeConfig(own.url, undefined, { custom: true });
   const w = await browser.newPage(); await w.goto(`http://127.0.0.1:${own.port}/hr.html${fragmentFor(webConfig)}`);
   await w.locator('#status').filter({ hasText: '进入房间' }).waitFor();
-  assert.equal(await w.locator('#custom-relay').isVisible(), false);
+  assert.equal(await w.locator('#custom-relay').isVisible(), true, 'the hosted creator can reach typed relays too');
 
   // The creation page makes custom-relay files by default, strict when unticked.
   const maker = await browser.newPage(); await maker.goto(`http://127.0.0.1:${own.port}/`);
@@ -72,7 +72,7 @@ try {
   await maker.locator('#mk-advanced summary').click(); await maker.locator('#mk-custom').uncheck();
   assert.doesNotMatch(await made(), /connect-src wss: /);
   assert.deepEqual(errors, []);
-  console.log('PASS: custom relays typed into the file (classic and decentralized), bad address handling, strict files and web links without the box, maker default');
+  console.log('PASS: custom relays typed into the file (classic and decentralized), bad address handling, strict files without the box, links on the site with it, maker default');
 } finally {
   await browser?.close(); await Promise.all([own.stop(), nostr.stop()]); await rm(dir, { recursive: true, force: true });
 }

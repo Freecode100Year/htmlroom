@@ -12,9 +12,9 @@ Optional #hr1= entry can expose master to the hosting page's code; it is not equ
 
 Local file scripts/WebCrypto/WSS vary in iOS and WeChat/QQ previews. Real-device testing is mandatory before compatibility claims. Absent hardware must be marked unverified. Remote relay is still necessary.
 
-## 整合后的网页入口
+## 网站与离线创建器
 
-`/hr.html` 是由服务端提供代码的生成器/入口，安全性依赖该站点代码。只使用本站脚本样式，connect-src self 及构建时明确预设的精确中继源，无第三方分析；网页可读取 `#hr1=`，读取后会清除地址栏。已有会话不因新片段自动切房，须在新窗口打开。网页只为构建白名单完整覆盖的中继列表提供入房；默认仅同源。其他中继组合可生成离线文件，但不提供本站跳转。下载使用内存 Blob URL，仅用于文件下载，离开或重新生成后释放；没有开放 img-src blob。文件仍保持固定脚本/样式 hash CSP，不包含内联 style 属性。对整个网页或 HTML 的替换仍无法由其自身 CSP 防御。
+网站就是一个空白房间文件，与离线文件运行同一份按 SHA-256 固定的脚本和样式；服务器的 HTTP CSP 也固定这两个哈希，不加载任何外部资源。网页可读取 `#hr1=`，读取后清除地址栏，并可连接链接中的任意 wss 中继（CSP `wss:`）：被诱导打开攻击者构造的链接，等同于进入攻击者的房间，攻击者中继仍拿不到其他房间的密钥。新文件只在页面内由已运行的脚本字节和新配置拼出，下载使用内存 Blob URL；生成过程不联网。托管网页的安全性仍依赖站点提供的代码，与经独立渠道核验的离线文件不等同；离线创建器可用 `verify-room-file.mjs` 核验。对整个网页或 HTML 的替换仍无法由其自身 CSP 防御。
 
 ## 多中继可达性与分裂风险（V2）
 
