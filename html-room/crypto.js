@@ -22,6 +22,12 @@ export function relayOrigin(s) {
   return u.origin;
 }
 const KDF = { name:'PBKDF2', hash:'SHA-256', iterations:310000 };
+export function relayList(input) {
+  const values = Array.isArray(input) ? input : typeof input === 'string' ? input.trim().split(/[\s,]+/) : [];
+  const relays = [...new Set(values.map(relayOrigin))];
+  if (!relays.length || relays.length > 3) throw Error('请提供 1 到 3 个不同中继');
+  return relays;
+}
 const aad = roomId => enc.encode(`private-talk/html-room/v1/wrap|${roomId}`);
 async function passwordKey(pass, salt) {
   if (typeof pass !== 'string' || !pass.length || enc.encode(pass).length > 1024) throw Error('口令长度无效');
@@ -29,9 +35,9 @@ async function passwordKey(pass, salt) {
   return crypto.subtle.deriveKey({...KDF,salt}, base, {name:'AES-GCM',length:256}, false, ['encrypt','decrypt']);
 }
 export function validate(c) {
-  if (!c || c.version !== 1 || !/^[0-9a-f]{64}$/.test(c.roomId)) throw Error('房间版本或地址错误');
-  if (relayOrigin(c.relay) !== c.relay) throw Error('中继源格式错误');
-  const common=['version','relay','roomId','encrypted'];
+  if (!c || c.version !== 2 || !/^[0-9a-f]{64}$/.test(c.roomId)) throw Error('房间版本或地址错误');
+  if (!Array.isArray(c.relays) || JSON.stringify(relayList(c.relays)) !== JSON.stringify(c.relays)) throw Error('中继列表格式错误');
+  const common=['version','relays','roomId','encrypted'];
   if (c.encrypted === true) {
     const allowed=[...common,'salt','iv','ciphertext','kdf'];
     if (Object.keys(c).some(k=>!allowed.includes(k)) || !c.kdf || Object.keys(c.kdf).length !== 3 || Object.entries(KDF).some(([k,v])=>c.kdf[k]!==v)) throw Error('不支持的 KDF 配置');
@@ -43,8 +49,8 @@ export function validate(c) {
   return c;
 }
 export async function makeConfig(relay, pass) {
-  relay=relayOrigin(relay);
-  const master=random(32), d=await derive(master), c={version:1,relay,roomId:d.roomId,encrypted:!!pass};
+  const relays=relayList(relay);
+  const master=random(32), d=await derive(master), c={version:2,relays,roomId:d.roomId,encrypted:!!pass};
   if (!pass) return {...c,master:hex(master)};
   const salt=random(16), iv=random(12), key=await passwordKey(pass,salt);
   const ciphertext=await crypto.subtle.encrypt({name:'AES-GCM',iv,additionalData:aad(c.roomId)},key,master);

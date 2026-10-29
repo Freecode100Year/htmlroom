@@ -16,8 +16,8 @@ test('HTML Room wrapping validates password, AAD, bounded KDF', async () => {
 test('HTML Room config escaping, relay whitelist and fixed executable hash', async () => {
  const c=await makeConfig('wss://relay.example');const a=await render(c,['wss://relay.example']);const b=await render(await makeConfig('wss://relay.example'),['wss://relay.example']);
  assert.equal(a.scriptHash,b.scriptHash);assert.match(a.html,/default-src 'none'/);assert.doesNotMatch(a.html,/\sstyle\s*=/i);assert.doesNotMatch(a.html,/<script[^>]+src=/i);
- await assert.rejects(render({...c,relay:'wss://evil.example'},['wss://relay.example']));
- await assert.rejects(render({...c,relay:'wss://relay.example/</script>'},['wss://relay.example']));
+ await assert.rejects(render({...c,relays:['wss://evil.example']},['wss://relay.example']));
+ await assert.rejects(render({...c,relays:['wss://relay.example/</script>']},['wss://relay.example']));
 });
 import { htmlRoomOrigin, checkHtmlRoomFrame } from '../src/html-room.js';
 import { accessMatches } from '../src/rules.js';
@@ -81,7 +81,7 @@ test('HTML Room relay host rejects CSP/meta attribute injection',async()=>{
 });
 import { checkHtml } from '../scripts/check-html-room.mjs';
 test('HTML Room equivalent integrity check detects modified code and CSP',async()=>{
- const c=await makeConfig('wss://relay.example'),r=await render(c,[c.relay]);assert.equal((await checkHtml(r.html,r.scriptHash)).bytes,r.bytes);
+ const c=await makeConfig('wss://relay.example'),r=await render(c,c.relays);assert.equal((await checkHtml(r.html,r.scriptHash)).bytes,r.bytes);
  await assert.rejects(checkHtml(r.html.replace("default-src 'none'","default-src *"),r.scriptHash));
  await assert.rejects(checkHtml(r.html.replace('<script>','<script>alert(1);'),r.scriptHash));
 });

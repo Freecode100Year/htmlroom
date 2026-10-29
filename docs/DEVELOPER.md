@@ -193,6 +193,31 @@ npm run deploy
 
 中继使用根路径下的 `/hr/<roomId>`，不支持 `ENTRY_PATH`；这不影响 Pages 前端部署在项目子路径。
 
+## 多中继房间
+
+房间配置使用 `version: 2` 和有序的 `relays` 列表，最多 3 个不同的精确中继源。旧 `version: 1` 文件和链接不兼容，需要重新生成。网页生成器接受逗号或空格分隔的多个中继；CLI 可以重复传入 `--relay`，同时必须逐个用 `--allow-relay` 明确放行全部源：
+
+```sh
+node scripts/build-html-room.mjs room \
+  --out out/index.html \
+  --relay wss://primary.example.com \
+  --relay wss://backup.example.com \
+  --allow-relay wss://primary.example.com \
+  --allow-relay wss://backup.example.com
+```
+
+所有成员使用同一份配置，按同一顺序尝试中继。握手 10 秒未收到合法 `hello` 或心跳超过 65 秒未响应时切换；重试间隔从 1 秒指数增长，最多 30 秒；备用连接建立后每 60 秒探测首选，收到合法 `hello` 才接管当前连接。不是所有浏览器都把 CSP 的 `self` 视作 WebSocket 来源，文件始终列出精确 WS/WSS 源；参考 [MDN connect-src](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy/connect-src) 和 [WebSocket 错误事件](https://developer.mozilla.org/en-US/docs/Web/API/WebSocket/error_event)。远程仅 WSS，回环 WS 只用于本地开发。
+
+跨中继会重新握手并清除旧中继的 resume、成员编号绑定和回执状态；未发送的内存消息继续排队，已提交但未确认的消息显示送达状态未知，不自动跨中继重放。请核实后手动重发并重新核对安全码。不同网络环境下成员仍可能暂时分裂，在线人数只代表当前中继，不能保证全局汇合。
+
+网页入口不能从房间配置任意扩大连接范围。普通 Node/Worker 网页默认只允许同源中继；可生成多中继房间文件，但其他中继组合不会生成本站房间链接。静态前端可在构建时预设精确白名单（同时也是默认顺序）：
+
+```sh
+HR_PAGES_RELAYS='wss://primary.example.com,wss://backup.example.com' npm run build:pages
+```
+
+Vercel 配置同名构建变量并重新部署。旧 `HR_PAGES_RELAY` 仍接受单项，`HR_PAGES_RELAYS` 优先。网页只接纳 `relays` 全部属于构建白名单的链接，每个中继都须放行该前端的精确 HTTPS Origin。文件静态恢复链接指向首选中继的 `/hr.html`，其网页也须支持该完整列表，否则应在支持脚本的浏览器中直接打开文件。不要把房间主密钥放到查询参数中。
+
 ## 命令行生成与核验房间文件
 
 ```sh

@@ -8,7 +8,7 @@ export async function checkHtml(html, expected) {
  const scripts=[...html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g)];
  if(scripts.length!==2 || scripts[0][1]!==' id="pt-room-config" type="application/json"' || scripts[1][1]!=='')throw Error('脚本结构改变');
  const config=JSON.parse(scripts[0][2]);if(config.version)validate(config);
- const canonical=await render(config,config.version?[config.relay]:[]);
+ const canonical=await render(config,config.version?config.relays:[]);
  if(canonical.html!==html)throw Error('HTML/CSP/脚本与可复现构建不符');
  if(hash(scripts[1][2])!==expected)throw Error('固定脚本哈希不符');
  if(/\sstyle\s*=/i.test(html) || /<(?:img|iframe|link)\b/i.test(html))throw Error('外部资源或内联样式');

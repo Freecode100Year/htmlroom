@@ -19,7 +19,7 @@ try{
  const fragment=await maker.locator('#mk-link').inputValue();assert.ok(fragment.includes('#hr1='));
  const got=maker.waitForEvent('download');await maker.locator('#mk-download').click();const download=await got;assert.equal(download.suggestedFilename(),'index.html');const path=dir+'/index.html';await download.saveAs(path);
  const html=await readFile(path,'utf8'),config=JSON.parse(html.match(/type="application\/json">(.*?)<\/script>/s)[1]);
- assert.equal(config.version,1);assert.equal(config.encrypted,false);assert.ok(config.master);
+ assert.equal(config.version,2);assert.equal(config.encrypted,false);assert.ok(config.master);
  await maker.goto(fragment);await maker.waitForFunction(()=>location.hash.length===0);assert.equal(new URL(maker.url()).hash.length,0);await maker.locator('#enter').click();
  await file.goto(pathToFileURL(path).href);await file.locator('#enter').click();
  for(const p of [maker,file])await p.locator('#status').filter({hasText:'已建立签名混合加密连接'}).waitFor({timeout:12000});
