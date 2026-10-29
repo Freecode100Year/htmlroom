@@ -68,6 +68,40 @@
 - 本项目还没有经过第三方专业机构的安全审计。
 - 想要更放心，就一定要**核对安全码**。
 
+## 部署自己的聊天室
+
+### Cloudflare：前端和中继一起部署（推荐）
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2FFreecode100Year%2Fhtmlroom)
+
+登录 Cloudflare，按页面提示创建仓库并部署。前端和 Durable Objects 中继在同一个 Worker 上，部署后打开分配的 `workers.dev` 地址即可创建房间，无需另配 Origin。
+
+仓库须公开。实测按钮可跳转至 Cloudflare 控制台，但当前测试环境被其验证页拦截（403），账户授权及 `JOIN_LIMIT` 绑定兼容性尚未完成线上验证；如果页面不支持该绑定，请在创建的仓库中移除 `wrangler.jsonc` 的 `ratelimits` 项后重新部署。代码已支持缺少该绑定时跳过加入限流，房间人数和消息大小限制仍生效。详见 [Cloudflare 部署说明](docs/DEVELOPER.md#cloudflare-workers)。
+
+### Linux 服务器：一条命令安装
+
+需要 Ubuntu/Debian、root 或 sudo 权限，以及一个**已解析到服务器的域名**。请开放 TCP 80/443，并确保没有其他程序占用这两个端口。
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Freecode100Year/htmlroom/main/install.sh | sudo bash
+```
+
+按提示输入域名，脚本会安装所需工具、检查或安装 Docker、拉取代码，再通过 Caddy 自动申请 HTTPS 证书并启动前端和中继。默认安装到 `/opt/htmlroom`，已有目录会拒绝覆盖。root 用户可将 `sudo bash` 换成 `bash`。
+
+非交互安装、预检、更新和卸载见 [服务器一键安装](docs/DEVELOPER.md#服务器一键安装ubuntudebian)。
+
+### Vercel：仅部署前端
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FFreecode100Year%2Fhtmlroom&env=HR_PAGES_RELAY&envDescription=WebSocket%20relay%20origin%20such%20as%20wss%3A%2F%2Frelay.example.com&envLink=https%3A%2F%2Fgithub.com%2FFreecode100Year%2Fhtmlroom%2Fblob%2Fmain%2Fdocs%2FDEVELOPER.md)
+
+部署时填写 `HR_PAGES_RELAY`（例如 `wss://你的中继域名`）。这不会部署聊天中继；请先准备 Cloudflare 或 Node 中继，并在中继的 `HR_ALLOWED_ORIGINS` 中加入 Vercel 网站的精确 HTTPS 来源。使用 `chat.nya.je` 也需要其运营者放行你的域名，不能保证复制前端后就能连接。详见 [Vercel 部署说明](docs/DEVELOPER.md#部署前端到-vercel)。
+
+### 部署支持与验证结果
+
+已提供 Cloudflare 完整部署入口、Vercel 静态前端配置，以及 Ubuntu/Debian 的 Docker + Caddy 一键安装脚本。安装脚本支持 `--check` 预检、拒绝覆盖已有目录，并校验本机及公网 HTTPS 返回的应用资源。
+
+本地验证：32 项项目测试通过（默认跳过的 9 项 Worker 探针另行运行，全部通过），静态前端浏览器测试、Docker 镜像构建、Compose/Caddy 配置检查和 Worker 打包检查通过。这些检查不代表已完成公网服务器安装或云端部署；Cloudflare 按钮的登录后绑定兼容性仍待验证。
+
 ## 给开发者
 
 想在自己电脑上运行、搭建自己的服务器，或者了解技术细节？请看：
