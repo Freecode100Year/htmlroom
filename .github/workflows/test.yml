@@ -16,7 +16,17 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npm test
+      - name: npm test
+        shell: bash
+        run: npm test 2>&1 | tee test-output.txt; exit ${PIPESTATUS[0]}
+      # Failing test names and errors as an annotation, readable from the API
+      # without downloading logs.
+      - name: Report failing tests
+        if: failure()
+        shell: bash
+        run: |
+          msg=$(grep -nE "^not ok|^# Subtest|^ +(error|expected|actual|location|code):" test-output.txt | grep -B1 -A6 "not ok" | head -80 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+          echo "::error title=npm test failures::${msg}"
       - run: npm run build:check
   browser:
     runs-on: ubuntu-latest
