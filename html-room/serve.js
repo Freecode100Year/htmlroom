@@ -16,7 +16,7 @@ import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import {
-  MAX_MEMBERS, ROOM_ID, PONG, CLOSE_BUSY, CLOSE_LEFT, CLOSE_FULL, CLOSE_CAPACITY, CLOSE_DENIED, PLAIN_HEADERS, JOINS_PER_MINUTE,
+  MAX_MEMBERS, MAX_FRAME, ROOM_ID, PONG, CLOSE_BUSY, CLOSE_LEFT, CLOSE_FULL, CLOSE_CAPACITY, CLOSE_DENIED, PLAIN_HEADERS, JOINS_PER_MINUTE,
   PROTOCOL, WIRE_VERSION, BC_TOPIC, BC_MAX_FRAME, BC_MAX_PEERS, broadcastFrameBad, emptyBook, admit, depart, awayNumbers, token, hostOf,
   parseProtocols, accessMatches
 } from '../src/rules.js';
@@ -138,7 +138,7 @@ export function serve(self, filename, argv = process.argv.slice(2)) {
   setInterval(() => { const now = Date.now(); for (const [ip, l] of joins) if (!l.some(t => now - t < 60000)) joins.delete(ip); }, 60000).unref();
 
   const sendTo = (ws, obj) => ws.send(typeof obj === 'string' ? obj : JSON.stringify(obj));
-  const broadcast = (room, obj) => { const out = JSON.stringify(obj); for (const p of room.peers) p.send(out); };
+  const broadcast = (room, obj, to) => { const out = JSON.stringify(obj); for (const p of room.peers) if (!to || to.includes(p.state.n)) p.send(out); };
   const members = room => {
     const host = hostOf([...room.peers].map(p => [p.state.n, p.state.seq]));
     broadcast(room, { type: 'members', members: [...room.peers].map(p => p.state.n).sort((a, b) => a - b), host, max: MAX_MEMBERS, locked: room.book.locked, away: awayNumbers(room.book) });
@@ -163,7 +163,7 @@ export function serve(self, filename, argv = process.argv.slice(2)) {
       if (f.close) return ws.close(...f.close);
       if (f.pong) return sendTo(ws, PONG);
       if (f.wait) return sendTo(ws, { type: 'wait', ms: f.wait });
-      if (f.key) return broadcast(room, { type: 'key', from: n, ...f.key });
+      if (f.key) return broadcast(room, { type: 'key', from: n, ...f.key }, f.to);
       if (f.seen) return broadcast(room, { type: 'seen', from: n, ...f.seen });
       broadcast(room, { type: 'msg', from: n, at: f.at, ...f.msg });
     };
@@ -203,7 +203,7 @@ export function serve(self, filename, argv = process.argv.slice(2)) {
     const proto = parseProtocols(req.headers['sec-websocket-protocol']);
     accessMatches(m[1], proto.access).then(ok => {
       if (!proto.ok || !ok) return reject('403 Forbidden');
-      accept(PROTOCOL, 5600, ws => enter(ws, `hr:${m[1]}`, ip, proto.resume));
+      accept(PROTOCOL, MAX_FRAME, ws => enter(ws, `hr:${m[1]}`, ip, proto.resume));
     }, () => reject('403 Forbidden'));
   });
   // Drop connections that stopped answering.

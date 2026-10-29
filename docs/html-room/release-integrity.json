@@ -1,16 +1,16 @@
 {
   "version": 2,
-  "stage": "file-is-server-htmlroom",
+  "stage": "fifty-members-htmlroom",
   "esbuild": "0.28.2",
   "artifacts": {
     "html-room-template.html": {
-      "bytes": 137836,
-      "sha256": "21621cec2747e3186a6db3f6a2bd47337811657d97d79ad1ff82a151a6f8b5af",
+      "bytes": 139506,
+      "sha256": "47bd9dbbe2ce796bd3d03cf11200a865983524c4ae875d3525c03ca59105739c",
       "csp": "([^"
     }
   },
-  "scriptHashBase64": "132cHb6St5eGcvEL/1E4x1v4FhIOR8q/cSGgPUvsHXQ=",
-  "scriptHashHex": "d77d9c1dbe92b7978672f10bff5138c75bf816120e47cabf7121a03d4bec1d74",
+  "scriptHashBase64": "Kg0nJGG+xHIa3LK+UZGnnux+Lsj/oUbwhnGEPDnbc7U=",
+  "scriptHashHex": "2a0d272461bec4721adcb2be5191a79eec7e2ec8ffa146f08671843c39db73b5",
   "styleHashBase64": "+cH4mX6DQpXWnU8EWkUQE30KyFp1e6rCFFdGd+i+pzA=",
-  "serverCommentSha256": "2c10db9227d736459256c960b7c9163f6eb608fec66f353e05e431cfcb5f13fc"
+  "serverCommentSha256": "971a532473d0c7d039dd0617391a736bd4057fab488e2249d612188a340195fe"
 }

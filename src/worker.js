@@ -146,7 +146,7 @@ export class Room extends DurableObject {
     if (r.close) return ws.close(...r.close);
     if (r.pong) return ws.send(PONG);
     if (r.wait) return ws.send(JSON.stringify({ type: 'wait', ms: r.wait }));
-    if (r.key) return this.broadcast({ type: 'key', from: a.n, ...r.key });
+    if (r.key) return this.broadcast({ type: 'key', from: a.n, ...r.key }, undefined, r.to);
     if (r.seen) return this.broadcast({ type: 'seen', from: a.n, ...r.seen });
     this.broadcast({ type: 'msg', from: a.n, at: r.at, ...r.msg });
   }
@@ -174,9 +174,10 @@ export class Room extends DurableObject {
     this.broadcast({ type: 'members', members: list, host: this.host(peers), max: MAX_MEMBERS, locked: book.locked, away: awayNumbers(book) }, skip);
   }
 
-  broadcast(obj, skip) {
+  broadcast(obj, skip, to) {
     const out = JSON.stringify(obj);
     for (const peer of this.peers(skip)) {
+      if (to && !to.includes(peer.deserializeAttachment().n)) continue;
       try { peer.send(out); } catch {}
     }
   }

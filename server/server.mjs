@@ -24,7 +24,7 @@ import { join, extname, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import {
-  MAX_MEMBERS, ROOM_ID, PONG, CLOSE_BUSY, CLOSE_CAPACITY, CLOSE_FULL, CLOSE_LEFT, CLOSE_DENIED, PLAIN_HEADERS, BYE_HEADERS, JOINS_PER_MINUTE,
+  MAX_MEMBERS, MAX_FRAME, ROOM_ID, PONG, CLOSE_BUSY, CLOSE_CAPACITY, CLOSE_FULL, CLOSE_LEFT, CLOSE_DENIED, PLAIN_HEADERS, BYE_HEADERS, JOINS_PER_MINUTE,
   PROTOCOL, WIRE_VERSION, COVER, inside, BC_TOPIC, BC_MAX_FRAME, BC_MAX_PEERS, broadcastFrameBad, emptyBook, admit, depart, awayNumbers, token, hostOf, parseProtocols, accessMatches
 } from '../src/rules.js';
 
@@ -178,9 +178,9 @@ function send(ws, obj) {
 
 const hostIn = (room) => hostOf([...room.peers].map((p) => [p.state.n, p.state.seq]));
 
-function broadcast(room, obj) {
+function broadcast(room, obj, to) {
   const out = JSON.stringify(obj);
-  for (const peer of room.peers) send(peer, out);
+  for (const peer of room.peers) if (!to || to.includes(peer.state.n)) send(peer, out);
 }
 
 function members(room) {
@@ -190,7 +190,7 @@ function members(room) {
 
 const wss = new WebSocketServer({
   noServer: true,
-  maxPayload: 5600,
+  maxPayload: MAX_FRAME,
   // The page asks for pt2 alongside its access value and resume token; only
   // pt2 is answered.
   handleProtocols: (protocols) => (protocols.has(PROTOCOL) ? PROTOCOL : false)
@@ -249,7 +249,7 @@ function enter(ws, roomId, ip, resume) {
     if (r.close) return ws.close(...r.close);
     if (r.pong) return send(ws, PONG);
     if (r.wait) return send(ws, { type: 'wait', ms: r.wait });
-    if (r.key) return broadcast(room, { type: 'key', from: n, ...r.key });
+    if (r.key) return broadcast(room, { type: 'key', from: n, ...r.key }, r.to);
     if (r.seen) return broadcast(room, { type: 'seen', from: n, ...r.seen });
     broadcast(room, { type: 'msg', from: n, at: r.at, ...r.msg });
   });

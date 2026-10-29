@@ -3,13 +3,15 @@
 // Rules shared by both relays: the Cloudflare Worker (src/worker.js) and the
 // Docker server (server/server.mjs). Each relay keeps its own room state and
 // calls these functions, so the two behave the same.
-export const MAX_MEMBERS = 25;          // visitors are numbered 1️⃣ to 🔟, then #11 to #25
-export const RATE_PER_10S = 60;         // frames of any kind per connection per 10 seconds
+// The room size lives in limits.js (fixed at 50, see there).
+import { MAX_MEMBERS } from './limits.js';
+export { MAX_MEMBERS };
+export const RATE_PER_10S = 100;        // frames of any kind per connection per 10 seconds (a newcomer to a full room sends ~25 key frames at once)
 export const SEND_GAP = 6000;           // one message per this long per person, on average
 export const SEND_BURST = 3;            // up to this many in a row first (a quick reply, a correction)
 export const GAP_SLACK = 250;           // allowance for network jitter
 export const LOCK_GAP = 2000;           // at least this long between one person's lock changes
-export const KEYS_PER_10S = 40;         // v3 key announcements per connection per 10 seconds (also count above). A page sends one or two a second, but one joining a full room as a low number sends up to 13 at once (ML-KEM secrets are large)
+export const KEYS_PER_10S = 60;         // v3 key announcements per connection per 10 seconds (also count above). A page sends one or two a second, but one joining a full room of 50 as a low number sends about 25 at once (ML-KEM secrets are large)
 export const BAD_FRAMES = 5;            // malformed frames tolerated before the connection is closed
 // Delivery receipts (sealed lists of messages a page has read; see app.js):
 // a page sends at most one every 1.5 seconds; more are dropped, not punished.
@@ -19,7 +21,7 @@ export const SEEN_PER_10S = 10;
 // per person per minute; more are dropped, not punished.
 export const FILES_PER_MINUTE = 6;
 export const PINGS_PER_10S = 4;         // heartbeats per connection per 10 seconds (the page sends one every 25)
-export const JOINS_PER_MINUTE = 60;     // per address (a 25-person room behind one NAT or VPN exit must fit)
+export const JOINS_PER_MINUTE = 120;    // per address (a 50-person room behind one NAT or VPN exit must fit, with reconnects)
 export const GRACE = 2 * 60 * 1000;     // how long a dropped member may come back, even to a locked room
 export const ROOM_ID = /^[0-9a-f]{64}$/;
 export const RESUME = /^[0-9a-f]{32}$/;
@@ -68,7 +70,7 @@ export async function accessMatches(roomId, access) {
 // ASCII, so a frame's length in characters is its length in bytes.
 const IV = /^[A-Za-z0-9+/]{16}$/;
 const CT = /^[A-Za-z0-9+/]{24,5484}={0,2}$/;
-export const MAX_FRAME = 5600;
+export const MAX_FRAME = 5800;          // a full key frame plus its recipient list (to)
 const CHAIN = /^\d{1,9}\.\d{1,9}$/;
 const ASCII = /^[\x20-\x7e]*$/;
 
@@ -212,7 +214,12 @@ export function checkFrame(raw, state, now = Date.now()) {
   if (msg.type === 'key') {
     state.keys = state.keysWindow === window ? (state.keys ?? 0) + 1 : 1;
     state.keysWindow = window;
-    return state.keys > KEYS_PER_10S ? { close: [1008, 'too many keys'] } : { key: { iv: msg.iv, ct: msg.ct } };
+    if (state.keys > KEYS_PER_10S) return { close: [1008, 'too many keys'] };
+    // to: the members whose key wraps this frame carries; the relay hands it to
+    // them only. Without it (a hello) the frame goes to everyone.
+    if (msg.to === undefined) return { key: { iv: msg.iv, ct: msg.ct } };
+    if (!Array.isArray(msg.to) || !msg.to.length || msg.to.length > MAX_MEMBERS || msg.to.some((n) => !Number.isInteger(n) || n < 1 || n > MAX_MEMBERS)) return bad();
+    return { key: { iv: msg.iv, ct: msg.ct }, to: [...new Set(msg.to)] };
   }
   if (msg.h !== undefined && (typeof msg.h !== 'string' || !CHAIN.test(msg.h))) return bad();
   // A leaky bucket (GCRA): sent is the time the person's allowance is spent
@@ -249,8 +256,8 @@ export const COVER = { status: 404, headers: { 'Content-Type': 'text/plain; char
 // same topic. Any server doing just that is compatible (see relay/go).
 export const BC_TOPIC = /^[0-9a-f]{32}$/;
 export const BC_MAX_FRAME = 16000;
-export const BC_MAX_PEERS = 50;
-export const BC_RATE_PER_10S = 60;
+export const BC_MAX_PEERS = MAX_MEMBERS + 14; // a full room plus reconnects still being noticed
+export const BC_RATE_PER_10S = 100;    // like RATE_PER_10S: room for a newcomer's key burst
 // state { window, count } is updated in place; true means close the connection.
 export function broadcastFrameBad(raw, state, now = Date.now()) {
   const window = Math.floor(now / 10000);

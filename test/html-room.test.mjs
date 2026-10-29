@@ -43,7 +43,7 @@ test('HTML Room announcement nonce uniqueness, padding, tamper and room AAD',asy
 });
 async function pair(){
  const config=await makeConfig('wss://relay.example'),d=await unlock(config);
- const events=[[],[]], a=new Session(d,config,{emit:(...e)=>events[0].push(e)}),b=new Session(d,config,{emit:(...e)=>events[1].push(e)});
+ const events=[[],[]], a=new Session(d,config,{emit:(...e)=>events[0].push(e),batchMs:0}),b=new Session(d,config,{emit:(...e)=>events[1].push(e),batchMs:0});
  a.group=await Group.create(d.key,d.bind,1);b.group=await Group.create(d.key,d.bind,2);a.present=b.present=[1,2];
  // Transport drives the exact Session handlers, preserving the serialized frame order.
  const frames=[];

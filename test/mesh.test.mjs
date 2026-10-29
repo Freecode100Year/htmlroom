@@ -87,12 +87,13 @@ test('members number themselves, settle clashes and hear each other', async (t) 
   const d = await derive(random(32)), sock = bus();
   const a = node(d, sock, 0), b = node(d, sock, 0); // both claim 1 at once
   t.after(() => { a.m.stop(); b.m.stop(); c.m.stop(); });
-  await wait(1500);
+  await wait(3000);
   const nums = [a.m.me, b.m.me].sort();
   assert.deepEqual(nums, [1, 2], 'a clash is settled');
-  assert.deepEqual([a.seen.hello, b.seen.hello].sort((x, y) => x.length - y.length), [[1], [1, 2]]);
+  assert.deepEqual([a.seen.hello, b.seen.hello].map(h => h.length), [1, 1], 'keys are made once, after the number settled');
+  assert.deepEqual([...a.seen.hello, ...b.seen.hello].sort(), [1, 2]);
   const c = node(d, sock, 200);
-  await wait(1500);
+  await wait(2500);
   assert.equal(c.m.me, 3);
   assert.deepEqual([a.m.me, b.m.me].sort(), [1, 2], 'established members keep their numbers');
   assert.deepEqual(a.seen.members.at(-1), [1, 2, 3]);
@@ -100,7 +101,7 @@ test('members number themselves, settle clashes and hear each other', async (t) 
   await wait(100);
   assert.deepEqual(a.seen.frames.at(-1), [3, 'msg']);
   assert.deepEqual(c.seen.frames.at(-1), [3, 'msg'], 'local echo once a relay took it');
-  c.m.stop(); await wait(200);
+  c.m.stop(); await wait(300);
   assert.deepEqual(a.seen.members.at(-1), [1, 2], 'bye removes a member at once');
 });
 
@@ -112,9 +113,9 @@ test('a late joiner that claims a taken number gives it up, whatever its node id
   const late = { seen: { hello: [], members: [], frames: [] } };
   late.m = new MeshConnection(['bc+wss://relay.example/bc/'], { derived: d, createSocket: sock, claimDelay: 0, onhello: n => late.seen.hello.push(n), onmembers: () => {}, onframe: () => {} });
   late.m.node = '0000000000000000'; late.m.start();
-  await wait(5000);
+  await wait(6000);
   assert.equal(a.m.me, 1); assert.deepEqual(a.seen.hello, [1]);
-  assert.equal(late.m.me, 2); assert.deepEqual(late.seen.hello, [1, 2]);
+  assert.equal(late.m.me, 2); assert.deepEqual(late.seen.hello, [2], 'gave up 1 before making keys for it');
 });
 
 test('frames reach every member through any one surviving relay, without duplicates', async (t) => {
@@ -122,7 +123,7 @@ test('frames reach every member through any one surviving relay, without duplica
   const relays = ['bc+wss://one.example/bc/', 'bc+wss://two.example/bc/'];
   const a = node(d, sock, 0, relays), b = node(d, sock, 300, relays);
   t.after(() => { a.m.stop(); b.m.stop(); });
-  await wait(800);
+  await wait(2500);
   a.m.links[0].ws.close(); a.m.links[0].open = false; a.m.links[0].stop();
   a.m.socket.send(JSON.stringify({ type: 'key', iv: 'a'.repeat(16), ct: 'b'.repeat(24) }));
   await wait(100);

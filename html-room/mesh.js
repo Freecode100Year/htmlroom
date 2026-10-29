@@ -16,7 +16,7 @@
 //   admission  every frame is AES-GCM under a key derived from the room master
 //              (meshKey), bound to the topic; anything else is dropped unread
 //   numbers    a newcomer announces itself, members answer, and after a few
-//              seconds it claims the lowest free number 1-25; on a clash
+//              seconds it claims the lowest free number 1-50; on a clash
 //              the earlier claim keeps it (lower node id on a tie), so a
 //              late joiner never displaces an established member
 //   presence   heartbeats every 4 s; silent for 14 s means gone
@@ -26,10 +26,15 @@
 // relay; a malicious member can also claim a taken one. The safety code covers
 // every present identity, so re-check it whenever the member list changes.
 import { hex, random, relayKind, relayUrl } from './crypto.js';
+import { MAX_MEMBERS } from '../src/limits.js';
 import { schnorr } from '@noble/curves/secp256k1';
 import { sha256 } from '@noble/hashes/sha256';
 
-export const HB_MS = 4000, ALIVE_MS = 14000, CLAIM_MS = 3000, MAX_WIRE = 16000, SKEW = 600000, MAX_MEMBERS = 25;
+// A claimed number is held this long, clash-free, before keys are made for it:
+// clashes in a crowd then cost a new number, not a new set of keys for everyone.
+export const SETTLE_MS = 1500;
+export const HB_MS = 4000, ALIVE_MS = 14000, CLAIM_MS = 3000, MAX_WIRE = 16000, SKEW = 600000;
+export { MAX_MEMBERS };
 export const NOSTR_KIND = 20111;
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 4096) s += String.fromCharCode(...u8.subarray(i, i + 4096)); return btoa(s); };
@@ -170,12 +175,12 @@ export class MeshConnection {
   constructor(relays, { derived, onhello, onmembers, onframe, onstatus = () => {}, onnotice = () => {}, onfatal = () => {},
     createSocket = (url, list) => list ? new WebSocket(url, list) : new WebSocket(url), now = () => Date.now(), claimDelay = CLAIM_MS + Math.random() * 1000 }) {
     Object.assign(this, { d: derived, onhello, onmembers, onframe, onstatus, onnotice, onfatal, createSocket, now, claimDelay });
-    this.node = hex(random(8)); this.me = 0; this.peers = new Map(); this.known = new Set(); this.seenIvs = new Map(); this.owners = new Map(); this.lastHb = 0;
+    this.node = hex(random(8)); this.me = 0; this.settled = false; this.peers = new Map(); this.known = new Set(); this.pending = new Map(); this.seenIvs = new Map(); this.owners = new Map(); this.lastHb = 0;
     this.nostrKey = schnorr.utils.randomPrivateKey();
     this.links = relays.map(entry => new LINKS[relayKind(entry)](this, entry));
     const mesh = this;
     // What Session expects of a socket.
-    this.socket = { get readyState() { return mesh.me && mesh.openCount() ? 1 : 0; }, send: s => mesh.sendSession(s), close() {} };
+    this.socket = { get readyState() { return mesh.me && mesh.settled && mesh.openCount() ? 1 : 0; }, send: s => mesh.sendSession(s), close() {} };
   }
   start() {
     for (const link of this.links) link.connect();
@@ -186,7 +191,7 @@ export class MeshConnection {
   stop() {
     if (this.stopped) return;
     if (this.me) this.broadcast({ k: 'bye' }).catch(() => {});
-    this.stopped = true; clearTimeout(this.claimTimer); clearTimeout(this.answer); clearInterval(this.timer);
+    this.stopped = true; clearTimeout(this.claimTimer); clearTimeout(this.settleTimer); clearTimeout(this.answer); clearInterval(this.timer);
     setTimeout(() => this.links.forEach(l => l.stop()), 50);
   }
   openCount() { return this.links.filter(l => l.open).length; }
@@ -212,7 +217,7 @@ export class MeshConnection {
   }
   sendSession(text) {
     let frame; try { frame = JSON.parse(text); } catch { return; }
-    if (!FRAME_TYPES.includes(frame?.type) || !this.me) return;
+    if (!FRAME_TYPES.includes(frame?.type) || !this.me || !this.settled) return;
     const me = this.me;
     this.broadcast({ k: 'f', f: frame }).then(sent => {
       // Relays need not echo to the sender; "submitted" means at least one took it.
@@ -227,11 +232,13 @@ export class MeshConnection {
     const inner = await openFrame(this.d, wire, this.now());
     if (!inner || inner.d === this.node || this.stopped) return;
     if (!this.known.has(inner.d) && inner.k !== 'bye') { this.known.add(inner.d); this.answerSoon(); }
-    if (inner.k === 'bye') this.peers.delete(inner.d);
-    else if (inner.n > 0) this.peers.set(inner.d, { n: inner.n, c: inner.c ?? inner.t, seen: this.now() });
+    if (inner.k === 'bye') { this.peers.delete(inner.d); this.pending.delete(inner.d); }
+    else if (inner.n > 0) { this.peers.set(inner.d, { n: inner.n, c: inner.c ?? inner.t, seen: this.now() }); this.pending.delete(inner.d); }
+    else this.pending.set(inner.d, this.now());
     this.reconcile();
     // at: when it arrived here, the role a classic relay's timestamp plays (lib/state.js).
-    if (inner.k === 'f' && inner.n > 0 && this.owners.get(inner.n) === inner.d) this.onframe({ ...inner.f, at: this.now() }, inner.n);
+    // Broadcast relays cannot address; frames meant for others (to) are skipped unopened.
+    if (inner.k === 'f' && inner.n > 0 && this.owners.get(inner.n) === inner.d && !(Array.isArray(inner.f.to) && !inner.f.to.includes(this.me))) this.onframe({ ...inner.f, at: this.now() }, inner.n);
   }
   answerSoon() {
     if (!this.me || this.answer) return;
@@ -239,16 +246,24 @@ export class MeshConnection {
   }
   claim() {
     if (this.stopped) return;
-    const used = new Set([...this.live()].map(([, p]) => p.n));
-    let n = 1; while (used.has(n)) n++;
-    if (n > MAX_MEMBERS) { this.stop(); this.onfatal('房间已满（25 人）。'); return; }
-    this.me = n; this.claimedAt = this.now(); this.lastHb = 0;
-    this.onhello(n);
+    const used = new Set([...this.live()].map(([, p]) => p.n)), now = this.now();
+    // Others still unnumbered are claiming too: spread over the lowest few
+    // free numbers instead of all taking the lowest.
+    const crowd = [...this.pending.values()].filter(t => now - t <= ALIVE_MS).length;
+    const free = []; for (let n = 1; n <= MAX_MEMBERS && free.length < Math.min(5, 1 + crowd); n++) if (!used.has(n)) free.push(n);
+    if (!free.length) { this.stop(); this.onfatal(`房间已满（${MAX_MEMBERS} 人）。`); return; }
+    const n = free[Math.floor(Math.random() * free.length)];
+    this.me = n; this.claimedAt = now; this.lastHb = 0; this.settled = false;
+    clearTimeout(this.settleTimer);
+    this.settleTimer = setTimeout(() => {
+      if (this.stopped || this.me !== n) return;
+      this.settled = true; this.onhello(n); this.reconcile(true);
+    }, SETTLE_MS);
     this.sweep();
   }
   *live() { const now = this.now(); for (const e of this.peers) if (now - e[1].seen <= ALIVE_MS) yield e; }
   // Owners: for each number, the live node that claimed it first (then lowest id).
-  reconcile() {
+  reconcile(force = false) {
     const owners = new Map(), claims = new Map();
     const consider = (n, node, c) => { const cur = claims.get(n); if (!cur || c < cur.c || (c === cur.c && node < cur.node)) { claims.set(n, { node, c }); owners.set(n, node); } };
     if (this.me) consider(this.me, this.node, this.claimedAt);
@@ -258,12 +273,12 @@ export class MeshConnection {
     }
     const changed = [...owners].filter(([n, node]) => this.owners.has(n) && this.owners.get(n) !== node).map(([n]) => n);
     const same = owners.size === this.owners.size && [...owners].every(([n, node]) => this.owners.get(n) === node);
-    if (same) return;
+    if (same && !force) return;
     // A number passing to another node is a departure then an arrival, so the
     // session forgets the old identity before it hears the new one.
-    if (changed.length) this.onmembers([...this.owners.keys()].filter(n => !changed.includes(n)).sort((a, b) => a - b));
+    if (changed.length && this.settled) this.onmembers([...this.owners.keys()].filter(n => !changed.includes(n)).sort((a, b) => a - b));
     this.owners = owners;
-    if (this.me) this.onmembers([...owners.keys()].sort((a, b) => a - b));
+    if (this.me && this.settled) this.onmembers([...owners.keys()].sort((a, b) => a - b));
   }
   sweep() {
     if (this.stopped) return;

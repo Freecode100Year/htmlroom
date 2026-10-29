@@ -59,7 +59,7 @@ el('unlock').addEventListener('submit',async e=>{e.preventDefault();if(busy||Dat
  }
  session.tick=setInterval(()=>session.run(async()=>{
   if(session.ws?.readyState===1){
-   if(Date.now()-(session.lastAnnounce??0)>10000){await session.announce(true);session.lastAnnounce=Date.now();}
+   {const need=session.helloDue();if(need){await session.announce(true,need);session.lastAnnounce=Date.now();}}
    await session.flush();await session.retryPending();
   }
  }),1600);

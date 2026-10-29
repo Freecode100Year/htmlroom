@@ -1,3 +1,4 @@
+import { MAX_MEMBERS } from '../src/limits.js';
 // Availability and priority only. This layer never logs room URLs or credentials.
 export class RelayConnection {
   constructor(relays, { roomId, protocols, onactive, onmessage, onnotice, onfatal, ondisconnect,
@@ -42,7 +43,7 @@ export class RelayConnection {
       }
       if (r.frames.length >= 50) { this.fail(r); return; }
       r.frames.push(m);
-      if (m.type === 'hello' && !r.activating && Number.isInteger(m.you) && m.you >= 1 && m.you <= 25
+      if (m.type === 'hello' && !r.activating && Number.isInteger(m.you) && m.you >= 1 && m.you <= MAX_MEMBERS
         && typeof m.resume === 'string' && /^[0-9a-f]{32}$/.test(m.resume)) {
         r.activating = true; this.activate(r).catch(() => this.fail(r));
       }
