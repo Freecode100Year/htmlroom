@@ -4,13 +4,13 @@
   "esbuild": "0.28.2",
   "artifacts": {
     "html-room-template.html": {
-      "bytes": 144598,
-      "sha256": "371e2db7d0a7b88a67d3999745f2041e7b96fac568d12e0e232765704eb1c347",
+      "bytes": 144636,
+      "sha256": "647e85d78db29a802ccb65ba2c4f0c1f7145eee56e959cce59abfd909d008dfb",
       "csp": "([^"
     }
   },
-  "scriptHashBase64": "aNnjLm65Zqk0gxUuDbkzb8IA4rm24tWrD4YbtohyyZ8=",
-  "scriptHashHex": "68d9e32e6eb966a93483152e0db9336fc200e2b9b6e2d5ab0f861bb68872c99f",
+  "scriptHashBase64": "iVLxTi3bJRZhpVqIRsvx4wDWwt391pGXG3H9EFjlZP0=",
+  "scriptHashHex": "8952f14e2ddb251661a55a8846cbf1e300d6c2ddfdd691971b71fd1058e564fd",
   "styleHashBase64": "kDQ4uvzydd/bYRgj2CH45MTiA02XvOWw5A9uc4FMls8=",
   "serverCommentSha256": "971a532473d0c7d039dd0617391a736bd4057fab488e2249d612188a340195fe"
 }

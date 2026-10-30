@@ -195,7 +195,7 @@ curl -fsSL https://raw.githubusercontent.com/Freecode100Year/htmlroom/main/scrip
 ## 常见问题
 
 **微信 / QQ / iPhone 里点开文件没反应？**
-这些 App 的「预览」经常跑不了聊天室。请复制房间链接，粘贴到 Safari、Chrome 等浏览器打开。目前还没有在 iPhone、安卓、微信、QQ 上做过完整的实机测试。
+这些 App 的「预览」经常跑不了聊天室，iPhone 的 Safari、Chrome 也不能直接打开手机里的 .html 文件。房间文件停在「正在启动」时，下方会出现「用浏览器打开这个房间」：点它（或复制链接粘贴到 Safari、Chrome）就能进房，口令不变。经典中继的房间打开中继自己的网页；Nostr、MQTT 等去中心化房间打开公共网站 `https://hr50.freedom8964.com`。链接里 `#` 后面的房间钥匙不会发给网站。旧文件没有这个链接，用新版的「换一个中继服务器」转换一次即可。目前还没有在 iPhone、安卓、微信、QQ 上做过完整的实机测试。
 
 **`node index.html` 提示 `Unknown file extension ".html"`？**
 文件所在目录的上层有声明 `"type": "module"` 的 `package.json`。换个目录，或复制成 `relay.cjs` 再运行 `node relay.cjs`。

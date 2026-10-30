@@ -31,7 +31,9 @@ test('version follows relay kind; moving to decentralized relays keeps key, pass
   assert.throws(() => validate({ ...mesh, version: 2 }));
   const html = (await render(mesh, mesh.relays)).html;
   assert.match(html, /connect-src wss:\/\/n\.example wss:\/\/m\.example\/mqtt;/);
-  assert.doesNotMatch(html.split('<script id="pt-room-config"')[0], /preview-link/, 'no web entry for relays outside one bc server');
+  assert.match(html.split('<script id="pt-room-config"')[0], /id="preview-link" href="https:\/\/hr50\.freedom8964\.com\/hr\.html#hr1=/, 'Nostr/MQTT rooms open on the public site');
+  const mixedBc = withRelays(classic, 'bc+wss://r.example nostr+wss://n.example');
+  assert.match((await render(mixedBc, mixedBc.relays)).html, /href="https:\/\/hr50\.freedom8964\.com\/hr\.html#hr1=/);
   const bcOnly = withRelays(classic, 'bc+wss://r.example bc+wss://r.example/alt/');
   assert.match((await render(bcOnly, bcOnly.relays)).html, /href="https:\/\/r\.example\/hr\.html#hr1=/);
 });

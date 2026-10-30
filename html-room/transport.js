@@ -2,10 +2,13 @@ import { validate, validateBlank, relayEntry, relayKind, relayUrl, connectSource
 const escText = s => s.replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
 // The page that can open this room from a link: a classic relay's /hr.html, or
 // for a decentralized room whose relays are all bc paths on one server, that
-// server's page. Other relay mixes have no web entry; use the file.
+// server's page. Any other decentralized room (Nostr, MQTT, mixed) needs no
+// particular server, so the public site opens it: phones cannot run a local
+// HTML file, and the key stays in the #fragment, never sent to the site.
+export const PUBLIC_WEB_ENTRY='https://hr50.freedom8964.com';
 export function webEntry(config){
  if(config.version===2)return config.relays[0].replace(/^ws/,'http');
- if(config.version===3){const origins=config.relays.map(r=>relayKind(r)==='bc'?new URL(relayUrl(r)).origin:null);if(origins.every(o=>o&&o===origins[0]))return origins[0].replace(/^ws/,'http');}
+ if(config.version===3){const origins=config.relays.map(r=>relayKind(r)==='bc'?new URL(relayUrl(r)).origin:null);if(origins.every(o=>o&&o===origins[0]))return origins[0].replace(/^ws/,'http');return PUBLIC_WEB_ENTRY;}
  return '';
 }
 export const escapeConfig=c=>JSON.stringify(c).replace(/[<>/\u2028\u2029]/g,c=>`\\u${c.charCodeAt(0).toString(16).padStart(4,'0')}`);
