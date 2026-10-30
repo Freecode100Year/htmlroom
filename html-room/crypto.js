@@ -72,9 +72,24 @@ export const CUSTOM_SOURCES = ['wss:', 'ws://localhost:*', 'ws://127.0.0.1:*']; 
 export const connectSources = config => !config.version ? CUSTOM_SOURCES : [...(config.custom ? CUSTOM_SOURCES : []), ...config.relays.map(cspSource)];
 // Blank files may carry default relays for the generator: {} or {relays:[...]}.
 export function validateBlank(c) {
-  if (!c || typeof c !== 'object' || Array.isArray(c) || c.version !== undefined || Object.keys(c).some(k => k !== 'relays')) throw Error('空白文件配置错误');
+  if (!c || typeof c !== 'object' || Array.isArray(c) || c.version !== undefined || Object.keys(c).some(k => !['relays','title'].includes(k))) throw Error('空白文件配置错误');
+  if (c.title !== undefined && titleOf(c.title) !== c.title) throw Error('标题格式错误');
   if (c.relays !== undefined && JSON.stringify(relayList(c.relays)) !== JSON.stringify(c.relays)) throw Error('默认中继格式错误');
   return c;
+}
+// A room's title: shown in <title> and as the page heading. Anyone holding
+// the file can choose it (when creating, or in a regenerated file); it is
+// public routing-free text, escaped wherever it is written into HTML.
+export const DEFAULT_TITLE = '聚众加密聊天房间';
+export const MAX_TITLE = 60;
+export function titleOf(input) {
+  if (input === undefined || input === null) return undefined;
+  if (typeof input !== 'string') throw Error('标题格式错误');
+  const t = input.replace(/\s+/g, ' ').trim();
+  if (!t || t === DEFAULT_TITLE) return undefined;
+  if (Array.from(t).length > MAX_TITLE) throw Error(`标题最多 ${MAX_TITLE} 个字`);
+  if (/[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069]/.test(t)) throw Error('标题含不支持的字符');
+  return t;
 }
 export const versionFor = relays => relays.some(r => relayKind(r) !== 'hr') ? 3 : 2;
 const KDF = { name:'PBKDF2', hash:'SHA-256', iterations:310000 };
@@ -91,7 +106,8 @@ export function validate(c) {
   // custom: true lets whoever opens the file connect through relays they type
   // in (its CSP then admits any wss: origin); absent means the listed relays only.
   if (c.custom !== undefined && c.custom !== true) throw Error('配置字段错误');
-  const common=['version','relays','roomId','encrypted','custom'];
+  if (c.title !== undefined && titleOf(c.title) !== c.title) throw Error('标题格式错误');
+  const common=['version','relays','roomId','encrypted','custom','title'];
   if (c.encrypted === true) {
     const allowed=[...common,'salt','iv','ciphertext','kdf'];
     if (Object.keys(c).some(k=>!allowed.includes(k)) || !c.kdf || Object.keys(c.kdf).length !== 3 || Object.entries(KDF).some(([k,v])=>c.kdf[k]!==v)) throw Error('不支持的 KDF 配置');
@@ -102,7 +118,7 @@ export function validate(c) {
   }
   return c;
 }
-export async function makeConfig(relay, pass, { custom = false } = {}) {
+export async function makeConfig(relay, pass, { custom = false, title } = {}) {
   const relays=relayList(relay);
   const master=random(32), d=await derive(master), c={version:versionFor(relays),relays,roomId:d.roomId,encrypted:!!pass};
   let out;
@@ -112,7 +128,8 @@ export async function makeConfig(relay, pass, { custom = false } = {}) {
     const ciphertext=await crypto.subtle.encrypt({name:'AES-GCM',iv,additionalData:aad(c.roomId)},key,master);
     out={...c,salt:hex(salt),iv:hex(iv),ciphertext:hex(ciphertext),kdf:{...KDF}};
   }
-  return custom ? {...out,custom:true} : out;
+  const t = titleOf(title);
+  return {...out, ...(custom && {custom:true}), ...(t && {title:t})};
 }
 // The relays this visit uses: the file's own, or ones typed into a file that
 // allows it. Only the routing changes; key material and roomId stay.
