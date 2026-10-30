@@ -6,7 +6,8 @@
 // exact script and style bytes this page runs with (html-room/template.js),
 // so they are byte-identical to a release build and pass verify-room-file.
 import { boot } from './client.js';
-import { makeConfig, relayList, validate, validateBlank, hex, random, DEFAULT_TITLE } from './crypto.js';
+import { makeConfig, relayList, validate, validateBlank, readablePassword, DEFAULT_TITLE } from './crypto.js';
+import { copyText, showToggle } from './ui.js';
 import { configFromHash, fragmentFor } from './transport.js';
 import { retargetHtml, htmlFor, withRelays, configFromRoomHtml } from './template.js';
 
@@ -51,7 +52,15 @@ function enableMaker(defaults, { open, siteTitle }) {
   if (open) { el('new-room').open = true; el('new-room').querySelector('summary').hidden = true; }
   el('mk-relay').value = defaults.join(' ');
   if (!defaults.length) el('mk-advanced').open = true;
-  el('mk-gen').addEventListener('click', () => { el('mk-pass').value = hex(random(32)); });
+  const pass = showToggle(el('mk-pass'), el('mk-show'));
+  el('mk-pass').addEventListener('input', () => { el('mk-copy-pass').hidden = !el('mk-pass').value; });
+  // A generated password is shown, so it can be read out and copied.
+  el('mk-gen').addEventListener('click', () => {
+    el('mk-pass').value = readablePassword(); pass.show(true); el('mk-copy-pass').hidden = false;
+    fail('已生成口令，显示在上面。可以点「复制口令」。');
+  });
+  el('mk-copy-pass').addEventListener('click', () => copyText(el('mk-pass')).then(ok => fail(ok ? '口令已复制。请换一种方式告诉朋友，别和文件一起发。' : '复制失败：口令已选中，请手动复制。')));
+  el('mk-pass-copy').addEventListener('click', () => copyText(el('mk-pass-out')).then(ok => fail(ok ? '口令已复制。请换一种方式告诉朋友，别和文件一起发。' : '复制失败：口令已选中，请手动复制。')));
   // Classic relays of this project also forward decentralized rooms on /bc/.
   el('mk-mesh').addEventListener('click', () => {
     const list = el('mk-relay').value.trim().split(/[\s,]+/).filter(Boolean).map(r => /^wss?:\/\//.test(r) ? `bc+${r.replace(/\/+$/, '')}/bc/` : r);
@@ -65,7 +74,10 @@ function enableMaker(defaults, { open, siteTitle }) {
       if (password && new TextEncoder().encode(password).length > 1024) throw Error('口令太长了');
       const next = await makeConfig(relays, password || undefined, { custom: el('mk-custom').checked, title: el('mk-title').value });
       offer('mk-download', await htmlFor(next, own));
-      el('mk-out').hidden = false; el('mk-pass').value = '';
+      el('mk-out').hidden = false;
+      // The password stays readable with the result: losing it loses the room.
+      el('mk-pass-out').value = password; el('mk-pass-row').hidden = !password;
+      el('mk-pass').value = ''; pass.show(false); el('mk-copy-pass').hidden = true;
       // A link only works on a hosted creator, which can open any room.
       if (hosted) { el('mk-link').value = location.origin + location.pathname + fragmentFor(next); el('mk-link-row').hidden = false; }
       else { el('mk-link').value = ''; el('mk-link-row').hidden = true; }
@@ -73,7 +85,7 @@ function enableMaker(defaults, { open, siteTitle }) {
     } catch (e) { fail(cjk(e) ? `创建失败：${e.message}` : '创建失败，请检查中继地址后再试。'); el('mk-advanced').open = true; }
     finally { el('mk-make').disabled = false; }
   });
-  el('mk-copy').addEventListener('click', () => navigator.clipboard?.writeText(el('mk-link').value).then(() => fail('已复制。链接就是钥匙，请只发给要聊天的人。'), () => fail('复制失败，请手动选中链接复制。')));
+  el('mk-copy').addEventListener('click', () => copyText(el('mk-link')).then(ok => fail(ok ? '已复制。链接就是钥匙，请只发给要聊天的人。' : '复制失败：链接已选中，请手动复制。')));
   el('cv-make').addEventListener('click', async () => {
     const say = t => { el('cv-error').textContent = t; }; el('cv-download').hidden = true; el('cv-make').disabled = true; say('');
     try {
