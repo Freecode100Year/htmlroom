@@ -1,16 +1,16 @@
 {
   "version": 2,
-  "stage": "room-title-htmlroom",
+  "stage": "visible-password-htmlroom",
   "esbuild": "0.28.2",
   "artifacts": {
     "html-room-template.html": {
-      "bytes": 141314,
-      "sha256": "5a3f6fff21b29210b2744c91ab1e83cc67c668ee91e5008cc2e8e5b88edfbc70",
+      "bytes": 144598,
+      "sha256": "371e2db7d0a7b88a67d3999745f2041e7b96fac568d12e0e232765704eb1c347",
       "csp": "([^"
     }
   },
-  "scriptHashBase64": "2JtQBGQ1g3RysBYMwJmcKy+WFVqLIDDZxJLfYInhifQ=",
-  "scriptHashHex": "d89b50046435837472b0160cc0999c2b2f96155a8b2030d9c492df6089e189f4",
-  "styleHashBase64": "+cH4mX6DQpXWnU8EWkUQE30KyFp1e6rCFFdGd+i+pzA=",
+  "scriptHashBase64": "aNnjLm65Zqk0gxUuDbkzb8IA4rm24tWrD4YbtohyyZ8=",
+  "scriptHashHex": "68d9e32e6eb966a93483152e0db9336fc200e2b9b6e2d5ab0f861bb68872c99f",
+  "styleHashBase64": "kDQ4uvzydd/bYRgj2CH45MTiA02XvOWw5A9uc4FMls8=",
   "serverCommentSha256": "971a532473d0c7d039dd0617391a736bd4057fab488e2249d612188a340195fe"
 }

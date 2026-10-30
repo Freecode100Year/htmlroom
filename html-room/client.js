@@ -1,4 +1,5 @@
 import { unlock, validate, hex, sessionRelays } from './crypto.js';
+import { showToggle } from './ui.js';
 import { Session } from './session.js';
 import { RelayConnection } from './relay-connection.js';
 import { MeshConnection } from './mesh.js';
@@ -21,6 +22,7 @@ if(!globalThis.crypto?.subtle || !globalThis.WebSocket || !globalThis.TextEncode
 else if(config.version){
  try{validate(config);status(config.encrypted?'请输入口令，然后点「进入房间」。':'点「进入房间」开始聊天。');el('password').disabled=false;el('enter').disabled=false;}catch{status('房间文件有问题，请让对方重新发一份。');el('enter').disabled=true;}
 }else{status('这是空白模板，请先在创建页面里创建房间。');el('enter').disabled=true;}
+showToggle(el('password'),el('pw-show'));
 const custom=allowCustom && config.version && config.custom===true;
 if(custom){el('custom-relay').hidden=false;el('relay-input').value=config.relays.join(' ');}
 el('unlock').addEventListener('submit',async e=>{e.preventDefault();if(busy||Date.now()<nextUnlock)return;

@@ -6,6 +6,16 @@ export function bytes(s, n) {
   return Uint8Array.from(s.match(/../g), h => parseInt(h, 16));
 }
 export const random = n => crypto.getRandomValues(new Uint8Array(n));
+// A random password people can read out and type: 20 characters from 31 that
+// are hard to confuse (no I, L, O, 0, 1), in groups of four. About 99 bits.
+const PW_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+export function readablePassword(groups = 5) {
+  const out = [];
+  while (out.length < groups * 4) {
+    for (const b of random(32)) if (b < 248 && out.length < groups * 4) out.push(PW_ALPHABET[b % 31]); // 248 = 8 × 31: no bias
+  }
+  return out.join('').match(/.{4}/g).join('-');
+}
 export async function derive(master) {
   const raw = typeof master === 'string' ? bytes(master, 32) : master;
   if (!(raw instanceof Uint8Array) || raw.length !== 32) throw Error('房间密钥长度错误');

@@ -29,7 +29,7 @@ try{
  for(const c of [a,b])assert.deepEqual(await c.cookies(),[]);
  for(const p of [maker,file])assert.deepEqual(await p.evaluate(async()=>[localStorage.length,sessionStorage.length,(await indexedDB.databases()).length]),[0,0,0]);
  const bad=await a.newPage();let connected=0;bad.on('websocket',()=>connected++);await bad.goto(base+'/hr.html#hr1=invalid');await bad.getByText(/房间链接打不开/).waitFor();assert.equal(connected,0);
- const wrapped=await a.newPage();await wrapped.goto(base+'/hr.html');await wrapped.locator('#mk-gen').click();assert.equal((await wrapped.locator('#mk-pass').inputValue()).length,64);await wrapped.locator('#mk-make').click();await wrapped.locator('#mk-out').waitFor({state:'visible'});
+ const wrapped=await a.newPage();await wrapped.goto(base+'/hr.html');await wrapped.locator('#mk-gen').click();assert.match(await wrapped.locator('#mk-pass').inputValue(),/^[A-HJKMNP-Z2-9]{4}(-[A-HJKMNP-Z2-9]{4}){4}$/);assert.equal(await wrapped.locator('#mk-pass').getAttribute('type'),'text');await wrapped.locator('#mk-make').click();await wrapped.locator('#mk-out').waitFor({state:'visible'});
  const encoded=new URL(await wrapped.locator('#mk-link').inputValue()).hash.slice(5);const protectedConfig=JSON.parse(Buffer.from(encoded,'base64url').toString());assert.equal(protectedConfig.encrypted,true);assert.equal('master'in protectedConfig,false);
  console.log(JSON.stringify({suite:'integrated hosted maker/Fragment + file interop',checks:9,result:'pass',browser:browser.version(),consoleErrors:0,thirdPartyRequests:0}));
 }finally{await browser?.close();server?.kill();await rm(dir,{recursive:true,force:true});}
