@@ -105,7 +105,9 @@ function clientIP(req) {
 const localCheck = (req) => ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress) && !req.headers['x-forwarded-for'];
 
 const handler = async (req, res) => {
-  const url = new URL(req.url, 'http://x');
+  let url;
+  try { url = new URL(req.url, 'http://x'); }
+  catch { res.writeHead(400, PLAIN_HEADERS).end(); return; }
   if (ENTRY_PATH && !(url.pathname === '/healthz' && localCheck(req))) {
     const path = inside(url.pathname, ENTRY_PATH);
     if (path === null) { res.writeHead(COVER.status, COVER.headers).end(COVER.body); return; }
@@ -266,13 +268,15 @@ function enter(ws, roomId, ip, resume) {
 }
 
 server.on('upgrade', (req, socket, head) => {
-  const url = new URL(req.url, 'http://x');
-  const path = inside(url.pathname, ENTRY_PATH);
-  const m = typeof path === 'string' && path.match(/^\/(hr)\/([0-9a-f]+)$/);
   const reject = (status) => {
     const headers = Object.entries(PLAIN_HEADERS).map(([k, v]) => `${k}: ${v}\r\n`).join('');
     socket.end(`HTTP/1.1 ${status}\r\n${headers}Connection: close\r\n\r\n`);
   };
+  let url;
+  try { url = new URL(req.url, 'http://x'); }
+  catch { return reject('400 Bad Request'); }
+  const path = inside(url.pathname, ENTRY_PATH);
+  const m = typeof path === 'string' && path.match(/^\/(hr)\/([0-9a-f]+)$/);
   if (path === null) {
     const headers = Object.entries(COVER.headers).map(([k, v]) => `${k}: ${v}\r\n`).join('');
     return socket.end(`HTTP/1.1 404 Not Found\r\n${headers}Content-Length: ${COVER.body.length}\r\nConnection: close\r\n\r\n${COVER.body}`);

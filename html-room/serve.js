@@ -118,7 +118,9 @@ export function serve(self, filename, argv = process.argv.slice(2)) {
   };
   const tls = o.cert ? { cert: readFileSync(o.cert), key: readFileSync(o.key) } : null;
   const handler = (req, res) => {
-    const path = new URL(req.url, 'http://x').pathname;
+    let path;
+    try { path = new URL(req.url, 'http://x').pathname; }
+    catch { res.writeHead(400, PLAIN_HEADERS).end(); return; }
     if (path === '/healthz') { res.writeHead(200, { ...PLAIN_HEADERS, 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: true, kind: 'file', room: !blank })); return; }
     if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405, PLAIN_HEADERS).end(); return; }
     if (['/', '/hr.html', '/index.html'].includes(path)) {
@@ -186,7 +188,10 @@ export function serve(self, filename, argv = process.argv.slice(2)) {
   }
   server.on('upgrade', (req, sock) => {
     const reject = status => sock.end(`HTTP/1.1 ${status}\r\n${Object.entries(PLAIN_HEADERS).map(([k, v]) => `${k}: ${v}\r\n`).join('')}Connection: close\r\n\r\n`);
-    const path = new URL(req.url, 'http://x').pathname, key = req.headers['sec-websocket-key'];
+    let path;
+    try { path = new URL(req.url, 'http://x').pathname; }
+    catch { return reject('400 Bad Request'); }
+    const key = req.headers['sec-websocket-key'];
     if (!key || req.headers['sec-websocket-version'] !== '13' || !/websocket/i.test(req.headers.upgrade ?? '')) return reject('400 Bad Request');
     const ip = req.socket.remoteAddress || 'unknown', self = `${tls ? 'https' : 'http'}://${req.headers.host}`;
     const okOrigin = htmlRoomOrigin(req.headers.origin, self, o.allow);
