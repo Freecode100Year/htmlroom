@@ -4,13 +4,13 @@
   "esbuild": "0.28.2",
   "artifacts": {
     "html-room-template.html": {
-      "bytes": 150666,
-      "sha256": "27c6826a91a3bde85bb3b605c52272b85d24498b36f1261b59207e64e1f08207",
-      "csp": "([^"
+      "bytes": 150759,
+      "sha256": "a96e6e9f2b5b2213312480f8e935e5e98c8be317873fbef3556641e8d995630b",
+      "csp": "default-src 'none'; script-src 'sha256-LbcVvIGPK8Mnr2pbI3PdpvfwDccsr0aLSLdD42x34JU='; style-src 'sha256-82gqEEfd/CwYcKC6L+Zpcy+cflNgjz1jAZmBHTdVNFA='; connect-src wss: ws://localhost:* ws://127.0.0.1:*; base-uri 'none'; form-action 'none'"
     }
   },
-  "scriptHashBase64": "e4ZthKSaSXedK81SsX5JKl+XVDVssUo1XGeqzLo2WYM=",
-  "scriptHashHex": "7b866d84a49a49779d2bcd52b17e492a5f9754356cb14a355c67aaccba365983",
+  "scriptHashBase64": "LbcVvIGPK8Mnr2pbI3PdpvfwDccsr0aLSLdD42x34JU=",
+  "scriptHashHex": "2db715bc818f2bc327af6a5b2373dda6f7f00dc72caf468b48b743e36c77e095",
   "styleHashBase64": "82gqEEfd/CwYcKC6L+Zpcy+cflNgjz1jAZmBHTdVNFA=",
   "serverCommentSha256": "971a532473d0c7d039dd0617391a736bd4057fab488e2249d612188a340195fe"
 }

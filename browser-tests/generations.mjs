@@ -97,6 +97,17 @@ try {
   await checkHtml(selfHtml, blank.scriptHash);
   const again = watch(await offline.newPage()); await again.goto(pathToFileURL(selfPath).href);
   assert.equal(await again.locator('#mk-relay').inputValue(), relay.url);
+  // Links (including QR links) boot the hosted page with the room's title.
+  const title = '链接房间 <b>纯文本</b>';
+  await site.locator('#mk-title').fill(title);
+  await site.locator('#mk-make').click();
+  await site.locator('#mk-out').waitFor({ state: 'visible' });
+  const linked = watch(await online.newPage());
+  await linked.goto(await site.locator('#mk-link').inputValue());
+  await linked.locator('#unlock').waitFor({ state: 'visible' });
+  assert.equal(await linked.title(), title, 'hosted room links use the configured title');
+  assert.equal(await linked.locator('h1').first().textContent(), title);
+  assert.equal(await linked.locator('h1').first().locator('b').count(), 0, 'titles are plain text');
   assert.deepEqual(errors, []);
   console.log('PASS: titled room A, renamed by a holder; blank creator -> room A -> room B (new key, new password) -> room C, all offline and byte-identical to release builds; chat in B; site saves itself as an offline creator');
 } finally {

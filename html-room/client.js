@@ -1,4 +1,4 @@
-import { unlock, validate, hex, sessionRelays } from './crypto.js';
+import { unlock, validate, hex, sessionRelays, DEFAULT_TITLE } from './crypto.js';
 import { showToggle } from './ui.js';
 import { Session } from './session.js';
 import { RelayConnection } from './relay-connection.js';
@@ -6,6 +6,10 @@ import { MeshConnection } from './mesh.js';
 // allowCustom: false in the web entry, whose CSP cannot reach typed-in relays.
 export function boot(config, { allowCustom = true } = {}) {
 const el=id=>document.getElementById(id), status=text=>{el('status').textContent=text;};
+if(config.version){
+ document.title=config.title??DEFAULT_TITLE;
+ document.querySelector('h1').textContent=config.title??DEFAULT_TITLE;
+}
 el('preview-help').hidden=true;
 let attempts=0,busy=false,nextUnlock=0;
 let session;
