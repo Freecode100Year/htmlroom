@@ -23,8 +23,9 @@ try {
   const offline = await browser.newContext({ acceptDownloads: true }); await offline.setOffline(true);
   const errors = [], requests = [];
   const watch = p => { p.on('pageerror', e => errors.push(e.message)); p.on('request', r => { if (!/^(file|blob|data):/.test(r.url())) requests.push(r.url()); }); return p; };
-  const create = async (page, { relays, password, expand }) => {
+  const create = async (page, { relays, password, expand, title }) => {
     if (expand) await page.locator('#new-room > summary').click();
+    if (title) await page.locator('#mk-title').fill(title);
     if (relays) { if (!(await page.locator('#mk-relay').isVisible())) await page.locator('#mk-advanced > summary').click(); await page.locator('#mk-relay').fill(relays); }
     if (password) await page.locator('#mk-pass').fill(password);
     await page.locator('#mk-make').click();
@@ -42,11 +43,24 @@ try {
   assert.equal(await g0.locator('#maker').isVisible(), true);
   assert.equal(await g0.locator('#unlock').isVisible(), false);
   assert.equal(await g0.locator('#mk-relay').inputValue(), '');
-  const a = await create(g0, { relays: relay.url, password: 'first pass' });
-  assert.equal(a.config.custom, true);
+  assert.equal(await g0.title(), '聚众加密聊天房间');
+  const a = await create(g0, { relays: relay.url, password: 'first pass', title: '周末读书会 <b>' });
+  assert.equal(a.config.custom, true); assert.equal(a.config.title, '周末读书会 <b>');
 
   // Generation 1: room A creates room B with a different password.
   const g1 = watch(await offline.newPage()); await g1.goto(pathToFileURL(a.path).href);
+  assert.equal(await g1.title(), '周末读书会 <b>', 'the title shows as text, not markup');
+  assert.equal(await g1.locator('h1').first().textContent(), '周末读书会 <b>');
+  // Any holder can rename the room by regenerating the file (same key, same password).
+  await g1.locator('#retarget > summary').click();
+  assert.equal(await g1.locator('#rt-title').inputValue(), '周末读书会 <b>');
+  await g1.locator('#rt-title').fill('读书会第二季'); await g1.locator('#rt-make').click();
+  const rdl = g1.waitForEvent('download'); await g1.locator('#rt-download').click();
+  const renamedPath = dir + '/renamed.html'; await (await rdl).saveAs(renamedPath);
+  const renamed = await readFile(renamedPath, 'utf8'); await checkHtml(renamed, blank.scriptHash);
+  const rc = configFromRoomHtml(renamed);
+  assert.equal(rc.title, '读书会第二季'); assert.equal(rc.roomId, a.config.roomId); assert.equal(rc.ciphertext, a.config.ciphertext);
+  await g1.locator('#retarget > summary').click();
   assert.equal(await g1.locator('#unlock').isVisible(), true);
   assert.equal(await g1.locator('#maker').isVisible(), false, 'folded in a room file');
   await g1.locator('#new-room > summary').click();
@@ -54,6 +68,7 @@ try {
   assert.equal(await g1.locator('#mk-relay').inputValue(), relay.url, 'starts from this room\'s relays');
   const b = await create(g1, { password: 'second pass' });
   assert.notEqual(b.config.roomId, a.config.roomId, 'a new room, not a copy');
+  assert.equal(b.config.title, undefined, 'a new room starts with the default title unless one is given');
   assert.equal((await unlock(b.config, 'second pass')).roomId, b.config.roomId);
   await assert.rejects(unlock(b.config, 'first pass'));
 
@@ -83,7 +98,7 @@ try {
   const again = watch(await offline.newPage()); await again.goto(pathToFileURL(selfPath).href);
   assert.equal(await again.locator('#mk-relay').inputValue(), relay.url);
   assert.deepEqual(errors, []);
-  console.log('PASS: blank creator -> room A -> room B (new key, new password) -> room C, all offline and byte-identical to release builds; chat in B; site saves itself as an offline creator');
+  console.log('PASS: titled room A, renamed by a holder; blank creator -> room A -> room B (new key, new password) -> room C, all offline and byte-identical to release builds; chat in B; site saves itself as an offline creator');
 } finally {
   await browser?.close(); await relay.stop(); await rm(dir, { recursive: true, force: true });
 }

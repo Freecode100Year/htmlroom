@@ -6,7 +6,7 @@
 // exact script and style bytes this page runs with (html-room/template.js),
 // so they are byte-identical to a release build and pass verify-room-file.
 import { boot } from './client.js';
-import { makeConfig, relayList, validate, validateBlank, hex, random } from './crypto.js';
+import { makeConfig, relayList, validate, validateBlank, hex, random, DEFAULT_TITLE } from './crypto.js';
 import { configFromHash, fragmentFor } from './transport.js';
 import { retargetHtml, htmlFor, withRelays, configFromRoomHtml } from './template.js';
 
@@ -31,21 +31,21 @@ try { config = JSON.parse(el('pt-room-config').textContent); } catch { config = 
 
 function enableRetarget(config) {
   const say = t => { el('rt-status').textContent = t; };
-  el('retarget').hidden = false; el('rt-relay').value = config.relays.join(' ');
+  el('retarget').hidden = false; el('rt-relay').value = config.relays.join(' '); el('rt-title').value = config.title ?? '';
   el('rt-make').addEventListener('click', async () => {
     el('rt-download').hidden = true; el('rt-make').disabled = true; say('');
     try {
-      const r = await retargetHtml(config, el('rt-relay').value, own);
-      if (JSON.stringify(r.config.relays) === JSON.stringify(config.relays)) { say('地址和现在一样，不用换。'); return; }
+      const r = await retargetHtml(config, el('rt-relay').value, own, undefined, el('rt-title').value);
+      if (JSON.stringify(r.config.relays) === JSON.stringify(config.relays) && r.config.title === config.title) { say('中继和标题都和现在一样，不用生成。'); return; }
       offer('rt-download', r.html);
-      say(`新文件已生成（中继：${r.config.relays.join('、')}）。口令不变。请把它发给所有人，大家都用新文件打开，再核对一次安全码。`);
+      say(`新文件「${r.config.title ?? DEFAULT_TITLE}」已生成（中继：${r.config.relays.join('、')}）。口令不变。请把它发给所有人，大家都用新文件打开，再核对一次安全码。`);
     } catch (e) { say(cjk(e) ? `生成失败：${e.message}。` : '生成失败：地址格式不对。例子：wss://relay.example.com'); }
     finally { el('rt-make').disabled = false; }
   });
 }
 
 // The creator. defaults: relays to start from.
-function enableMaker(defaults, { open }) {
+function enableMaker(defaults, { open, siteTitle }) {
   const fail = t => { el('mk-error').textContent = t; };
   el('new-room').hidden = false;
   if (open) { el('new-room').open = true; el('new-room').querySelector('summary').hidden = true; }
@@ -63,7 +63,7 @@ function enableMaker(defaults, { open }) {
     try {
       const relays = relayList(el('mk-relay').value), password = el('mk-pass').value;
       if (password && new TextEncoder().encode(password).length > 1024) throw Error('口令太长了');
-      const next = await makeConfig(relays, password || undefined, { custom: el('mk-custom').checked });
+      const next = await makeConfig(relays, password || undefined, { custom: el('mk-custom').checked, title: el('mk-title').value });
       offer('mk-download', await htmlFor(next, own));
       el('mk-out').hidden = false; el('mk-pass').value = '';
       // A link only works on a hosted creator, which can open any room.
@@ -87,13 +87,12 @@ function enableMaker(defaults, { open }) {
     finally { el('cv-make').disabled = false; }
   });
   // On the site: the page itself, saved as a blank creator, works offline.
-  if (hosted) htmlFor(defaults.length ? { relays: defaults } : {}, own).then(html => { offer('mk-self', html); el('mk-self-row').hidden = false; }).catch(() => {});
+  if (hosted) htmlFor({ ...(defaults.length && { relays: defaults }), ...(siteTitle && { title: siteTitle }) }, own).then(html => { offer('mk-self', html); el('mk-self-row').hidden = false; }).catch(() => {});
 }
 
 function creatorOnly() {
   for (const id of ['risk', 'status', 'preview-help', 'unlock', 'retarget', 'relay-status', 'presence', 'safety', 'messages', 'chat']) el(id).hidden = true;
   document.querySelector('h1').hidden = true;
-  document.title = 'HTML Room · 加密聊天室';
 }
 
 function openLink(hash) {
@@ -119,7 +118,7 @@ try {
       if (openLink(location.hash) && ready) enableMaker(defaults, { open: false });
     } else {
       creatorOnly();
-      if (ready) enableMaker(defaults, { open: true });
+      if (ready) enableMaker(defaults, { open: true, siteTitle: config.title });
       addEventListener('hashchange', () => { if (location.hash.startsWith('#hr1=')) location.reload(); });
     }
   } else throw Error('bad config');

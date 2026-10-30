@@ -1,4 +1,5 @@
-import { validate, validateBlank, relayEntry, relayKind, relayUrl, connectSources } from './crypto.js';
+import { validate, validateBlank, relayEntry, relayKind, relayUrl, connectSources, DEFAULT_TITLE } from './crypto.js';
+const escText = s => s.replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
 // The page that can open this room from a link: a classic relay's /hr.html, or
 // for a decentralized room whose relays are all bc paths on one server, that
 // server's page. Other relay mixes have no web entry; use the file.
@@ -33,5 +34,6 @@ export async function fillTemplate(template,config,allowed,scriptHash,styleHash,
  const csp=c=>`default-src 'none'; script-src 'sha256-${scriptHash}'; style-src 'sha256-${styleHash}'; connect-src ${connectSources(c).join(' ')}; base-uri 'none'; form-action 'none'`;
  const marker=`<meta http-equiv="Content-Security-Policy" content="${csp({})}">`;
  if(!template.includes(marker))throw Error('模板 CSP 无效');
- return template.replace(marker,`<meta http-equiv="Content-Security-Policy" content="${csp(config)}">`).replace(previewHelp({}),previewHelp(config)).replace('<script id="pt-room-config" type="application/json">{}</script>',`<script id="pt-room-config" type="application/json">${escapeConfig(config)}</script>`);
+ const title=escText(config.title ?? DEFAULT_TITLE);
+ return template.replace(marker,`<meta http-equiv="Content-Security-Policy" content="${csp(config)}">`).replace(`<title>${DEFAULT_TITLE}</title>`,`<title>${title}</title>`).replace(`<body><h1>${DEFAULT_TITLE}</h1>`,`<body><h1>${title}</h1>`).replace(previewHelp({}),previewHelp(config)).replace('<script id="pt-room-config" type="application/json">{}</script>',`<script id="pt-room-config" type="application/json">${escapeConfig(config)}</script>`);
 }

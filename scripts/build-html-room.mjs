@@ -68,30 +68,31 @@ if(process.argv[1]===fileURLToPath(import.meta.url)){
  if(args[0]==='retarget'){
   const flags=args.slice(1);
   let custom;for(const f of ['--strict','--custom'])if(flags.includes(f)){custom=f==='--custom';flags.splice(flags.indexOf(f),1);}
-  if(flags.length%2 || flags.some((value,i)=>i%2===0&&!['--in','--out','--relay'].includes(value)) || flags.filter(x=>x==='--in').length!==1 || flags.filter(x=>x==='--out').length!==1)throw Error('用法：retarget --in 旧房间.html --out 新房间.html --relay wss://新中继 [--relay wss://备用中继]');
+  if(flags.length%2 || flags.some((value,i)=>i%2===0&&!['--in','--out','--relay','--title'].includes(value)) || flags.filter(x=>x==='--in').length!==1 || flags.filter(x=>x==='--out').length!==1)throw Error('用法：retarget --in 旧房间.html --out 新房间.html --relay wss://新中继 [--relay wss://备用中继]');
   const getAll=name=>flags.filter((value,i)=>i%2===1&&flags[i-1]===name);
   const relays=getAll('--relay');if(!relays.length)throw Error('retarget 需要至少一个 --relay');
   // Old files are rebuilt with the current template: the room secret is kept, the code is upgraded.
-  const config=withRelays(configFromRoomHtml(await readFile(getAll('--in')[0],'utf8')),relays,custom);
+  const [newTitle]=getAll('--title');
+  const config=withRelays(configFromRoomHtml(await readFile(getAll('--in')[0],'utf8')),relays,custom,newTitle);
   const r=await render(config,config.relays);
   await writeFile(getAll('--out')[0],r.html,{mode:0o600,flag:'wx'});
   console.log(JSON.stringify({bytes:r.bytes,relays:config.relays,roomId:config.roomId,encrypted:config.encrypted}));process.exit(0);
  }
- let output,relay,allowed,strict=true;
+ let output,relay,allowed,strict=true,title;
  if(args[0]==='room'){
   strict=false;
   const flags=args.slice(1);
   strict=flags.includes('--strict');if(strict)flags.splice(flags.indexOf('--strict'),1);
-  if(flags.length%2 || flags.some((value,i)=>i%2===0&&!['--out','--relay','--allow-relay'].includes(value)) || flags.filter(x=>x==='--out').length!==1)throw Error('room 仅支持一个 --out、可重复的 --relay、--allow-relay 和 --strict（不允许在文件里自定义中继）；口令请用 HR_PASSWORD_STDIN');
+  if(flags.length%2 || flags.some((value,i)=>i%2===0&&!['--out','--relay','--allow-relay','--title'].includes(value)) || flags.filter(x=>x==='--out').length!==1 || flags.filter(x=>x==='--title').length>1)throw Error('room 仅支持一个 --out、可重复的 --relay、--allow-relay、一个 --title 和 --strict（不允许在文件里自定义中继）；口令请用 HR_PASSWORD_STDIN');
   const getAll=name=>flags.filter((value,i)=>i%2===1&&flags[i-1]===name);
-  [output]=getAll('--out');relay=getAll('--relay');allowed=getAll('--allow-relay');
+  [output]=getAll('--out');relay=getAll('--relay');allowed=getAll('--allow-relay');[title]=getAll('--title');
   if(!output||!relay.length||!allowed.length)throw Error('room 需要 --out、--relay 与明确 --allow-relay');
  }else{[output,relay,...allowed]=args;}
  if(!output)throw Error('用法：node scripts/build-html-room.mjs out/index.html wss://relay.example wss://relay.example （从标准输入可选读取口令，HR_PASSWORD_STDIN=1）');
  let pass;
  if(process.env.HR_PASSWORD_STDIN==='1'){let s='';for await(const chunk of process.stdin){s+=chunk;if(Buffer.byteLength(s)>4096)throw Error('输入过长');}pass=s.replace(/\r?\n$/,'');if(!pass)throw Error('口令不能为空');}
  // room: custom relays allowed unless --strict; the legacy positional form stays strict.
- const config=relay?await makeConfig(relay,pass,{custom:!strict}):{};
+ const config=relay?await makeConfig(relay,pass,{custom:!strict,title}):{};
  const r=await render(config,allowed);
  await mkdir(new URL('../out/',import.meta.url),{recursive:true});
  await writeFile(output,r.html,{mode:0o600,flag:'wx'});
