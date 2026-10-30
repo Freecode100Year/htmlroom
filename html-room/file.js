@@ -8,6 +8,7 @@
 import { boot } from './client.js';
 import { makeConfig, relayList, validate, validateBlank, readablePassword, DEFAULT_TITLE } from './crypto.js';
 import { copyText, showToggle } from './ui.js';
+import { drawQr } from './qr.js';
 import { configFromHash, fragmentFor } from './transport.js';
 import { retargetHtml, htmlFor, withRelays, configFromRoomHtml } from './template.js';
 
@@ -79,11 +80,22 @@ function enableMaker(defaults, { open, siteTitle }) {
       el('mk-pass-out').value = password; el('mk-pass-row').hidden = !password;
       el('mk-pass').value = ''; pass.show(false); el('mk-copy-pass').hidden = true;
       // A link only works on a hosted creator, which can open any room.
+      showQr(false);
       if (hosted) { el('mk-link').value = location.origin + location.pathname + fragmentFor(next); el('mk-link-row').hidden = false; }
       else { el('mk-link').value = ''; el('mk-link-row').hidden = true; }
       fail(password ? '✅ 房间建好了。口令请换一种方式告诉朋友（比如打电话），别和文件一起发。' : '✅ 房间建好了。文件就是钥匙，请只发给要聊天的人。');
     } catch (e) { fail(cjk(e) ? `创建失败：${e.message}` : '创建失败，请检查中继地址后再试。'); el('mk-advanced').open = true; }
     finally { el('mk-make').disabled = false; }
+  });
+  // The QR code is drawn here on a canvas: no image, library or network request.
+  const showQr = on => {
+    el('mk-qr-row').hidden = !on; el('mk-qr').textContent = on ? '隐藏二维码' : '生成二维码'; el('mk-qr').setAttribute('aria-expanded', String(on));
+    if (!on) { const c = el('mk-qr-out'); c.width = c.height = 0; }
+  };
+  el('mk-qr').addEventListener('click', () => {
+    if (!el('mk-qr-row').hidden) { showQr(false); return; }
+    try { drawQr(el('mk-qr-out'), el('mk-link').value, 720); showQr(true); }
+    catch (e) { fail(cjk(e) ? e.message : '二维码生成失败，请改用复制链接。'); }
   });
   el('mk-copy').addEventListener('click', () => copyText(el('mk-link')).then(ok => fail(ok ? '已复制。链接就是钥匙，请只发给要聊天的人。' : '复制失败：链接已选中，请手动复制。')));
   el('cv-make').addEventListener('click', async () => {

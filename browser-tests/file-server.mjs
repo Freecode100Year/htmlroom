@@ -34,6 +34,18 @@ try {
   await maker.locator('#mk-pass').fill('file server');
   await maker.locator('#mk-make').click(); await maker.locator('#mk-link-row').waitFor({ state: 'visible' });
   const link = await maker.locator('#mk-link').inputValue();
+  // The QR code beside 复制链接: drawn on a canvas under the page's CSP, toggles off again.
+  assert.equal(await maker.locator('#mk-qr-row').isVisible(), false);
+  await maker.locator('#mk-qr').click();
+  assert.equal(await maker.locator('#mk-qr-out').isVisible(), true);
+  const qr = await maker.locator('#mk-qr-out').evaluate(c => { const g = c.getContext('2d'), px = (x, y) => g.getImageData(x, y, 1, 1).data[0];
+    let d = 0; while (d < c.width && px(d, d)) d++; const mod = d / 4; // the border is 4 modules
+    return { w: c.width, h: c.height, quiet: px(2, 2), finder: px(d + 3.5 * mod, d + 3.5 * mod), ring: px(d + 1.5 * mod, d + 1.5 * mod) }; });
+  assert.ok(qr.w >= 300 && qr.w === qr.h, 'square code of a scannable size');
+  assert.equal(qr.quiet, 255, 'white border'); assert.equal(qr.finder, 0, 'dark finder centre'); assert.equal(qr.ring, 255, 'light finder ring');
+  assert.equal(await maker.locator('#mk-qr').textContent(), '隐藏二维码');
+  await maker.locator('#mk-qr').click();
+  assert.equal(await maker.locator('#mk-qr-row').isVisible(), false);
   const dl = maker.waitForEvent('download'); await maker.locator('#mk-download').click();
   const roomPath = dir + '/room.html'; await (await dl).saveAs(roomPath);
   const roomHtml = await readFile(roomPath, 'utf8');
