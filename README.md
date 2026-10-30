@@ -9,6 +9,15 @@
 
 👉 **[马上创建房间](https://freecode100year.github.io/htmlroom/)**（也可使用 [Vercel 入口](https://htmlroom6.vercel.app/) 或 [备用入口](https://chat.nya.je/)）
 
+## Cloudflare 在线入口
+
+- **网站**：[https://hr50.freedom8964.com/](https://hr50.freedom8964.com/)
+- **WSS 中继源**：`wss://hr50.freedom8964.com`
+
+网站与中继部署在同一个 Cloudflare Worker，网页默认使用上述中继源。将中继源填入「中继服务器」即可使用；客户端会自动添加房间路径 `/hr/<roomId>`。
+
+此实例的部署配置为 `wrangler.hr50.jsonc`，更新命令：`npm ci && npm run build && npx wrangler deploy --config wrangler.hr50.jsonc`。
+
 ---
 
 ## 一个文件，三种身份
